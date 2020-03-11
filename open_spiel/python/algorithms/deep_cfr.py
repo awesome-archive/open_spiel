@@ -31,7 +31,7 @@ import collections
 import random
 import numpy as np
 import sonnet as snt
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python import policy
 
@@ -42,7 +42,7 @@ StrategyMemory = collections.namedtuple(
     "StrategyMemory", "info_state iteration strategy_action_probs")
 
 
-# TODO Refactor into data structures lib.
+# TODO(author3) Refactor into data structures lib.
 class FixedSizeRingBuffer(object):
   """ReplayBuffer of fixed size with a FIFO replacement policy.
 
@@ -149,9 +149,8 @@ class DeepCFRSolver(policy.Policy):
     self._batch_size_strategy = batch_size_strategy
     self._num_players = game.num_players()
     self._root_node = self._game.new_initial_state()
-    # TODO Allow embedding size (and network) to be specified.
-    self._embedding_size = len(
-        self._root_node.information_state_as_normalized_vector(0))
+    # TODO(author6) Allow embedding size (and network) to be specified.
+    self._embedding_size = len(self._root_node.information_state_tensor(0))
     self._num_iterations = num_iterations
     self._num_traversals = num_traversals
     self._num_actions = game.num_distinct_actions()
@@ -287,8 +286,8 @@ class DeepCFRSolver(policy.Policy):
         for a_ in state.legal_actions():
           sampled_regret[action] -= strategy[a_] * expected_payoff[a_]
         self._advantage_memories[player].add(
-            AdvantageMemory(state.information_state_as_normalized_vector(),
-                            self._iteration, advantages, action))
+            AdvantageMemory(state.information_state_tensor(), self._iteration,
+                            advantages, action))
       return max(expected_payoff.values())
     else:
       other_player = state.current_player()
@@ -299,8 +298,8 @@ class DeepCFRSolver(policy.Policy):
       sampled_action = np.random.choice(range(self._num_actions), p=probs)
       self._strategy_memories.add(
           StrategyMemory(
-              state.information_state_as_normalized_vector(other_player),
-              self._iteration, strategy))
+              state.information_state_tensor(other_player), self._iteration,
+              strategy))
       return self._traverse_game_tree(state.child(sampled_action), player)
 
   def _sample_action_from_advantage(self, state, player):
@@ -314,7 +313,7 @@ class DeepCFRSolver(policy.Policy):
       1. (list) Advantage values for info state actions indexed by action.
       2. (list) Matched regrets, prob for actions indexed by action.
     """
-    info_state = state.information_state_as_normalized_vector(player)
+    info_state = state.information_state_tensor(player)
     legal_actions = state.legal_actions(player)
     advantages = self._session.run(
         self._advantage_outputs[player],
@@ -330,13 +329,15 @@ class DeepCFRSolver(policy.Policy):
     return advantages, matched_regrets
 
   def action_probabilities(self, state):
-    """Returns action probabilites dict for a single batch."""
-    info_state_vector = np.array(state.information_state_as_normalized_vector())
+    """Returns action probabilities dict for a single batch."""
+    cur_player = state.current_player()
+    legal_actions = state.legal_actions(cur_player)
+    info_state_vector = np.array(state.information_state_tensor())
     if len(info_state_vector.shape) == 1:
       info_state_vector = np.expand_dims(info_state_vector, axis=0)
     probs = self._session.run(
         self._action_probs, feed_dict={self._info_state_ph: info_state_vector})
-    return {i: probs[0][i] for i in range(self._num_actions)}
+    return {action: probs[0][action] for action in legal_actions}
 
   def _learn_advantage_network(self, player):
     """Compute the loss on sampled transitions and perform a Q-network update.

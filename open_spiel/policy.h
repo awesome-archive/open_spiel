@@ -15,10 +15,13 @@
 #ifndef THIRD_PARTY_OPEN_SPIEL_POLICY_H_
 #define THIRD_PARTY_OPEN_SPIEL_POLICY_H_
 
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "open_spiel/abseil-cpp/absl/algorithm/container.h"
+#include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 
@@ -73,7 +76,7 @@ class Policy {
   // Returns a list of (action, prob) pairs for the policy at this state.
   // If the policy is not available at the state, returns and empty list.
   virtual ActionsAndProbs GetStatePolicy(const State& state) const {
-    return GetStatePolicy(state.InformationState());
+    return GetStatePolicy(state.InformationStateString());
   }
 
   // Returns a list of (action, prob) pairs for the policy at this info state.
@@ -99,6 +102,29 @@ class TabularPolicy : public Policy {
   TabularPolicy(const std::unordered_map<std::string, ActionsAndProbs>& table)
       : policy_table_(table) {}
 
+  // Converts a policy to a TabularPolicy.
+  TabularPolicy(const Game& game, const Policy& policy) : TabularPolicy(game) {
+    for (auto& [infostate, is_policy] : policy_table_) {
+      is_policy = policy.GetStatePolicy(infostate);
+    }
+  }
+
+  // Creates a new TabularPolicy from a deterministic policy encoded as a
+  // {info_state_str -> action} dict. The dummy_policy is used to initialize
+  // the initial mapping.
+  TabularPolicy(const TabularPolicy& dummy_policy,
+                const std::unordered_map<std::string, Action>& action_map)
+      : policy_table_(dummy_policy.policy_table_) {
+    for (const auto& entry : action_map) {
+      std::string info_state = entry.first;
+      Action action_taken = action_map.at(entry.first);
+      for (auto& action_and_prob : policy_table_[info_state]) {
+        action_and_prob.second =
+            (action_and_prob.first == action_taken ? 1.0 : 0.0);
+      }
+    }
+  }
+
   ActionsAndProbs GetStatePolicy(const std::string& info_state) const override {
     auto iter = policy_table_.find(info_state);
     if (iter == policy_table_.end()) {
@@ -112,15 +138,47 @@ class TabularPolicy : public Policy {
     return policy_table_;
   }
 
+  const std::unordered_map<std::string, ActionsAndProbs>& PolicyTable() const {
+    return policy_table_;
+  }
+
+  const std::string ToString() const {
+    std::string str = "";
+    for (const auto& infostate_and_policy : policy_table_) {
+      absl::StrAppend(&str, infostate_and_policy.first, ": ");
+      for (const auto& policy : infostate_and_policy.second) {
+        absl::StrAppend(&str, " ", policy.first, "=", policy.second);
+      }
+      absl::StrAppend(&str, "\n");
+    }
+    return str;
+  }
+
  private:
   std::unordered_map<std::string, ActionsAndProbs> policy_table_;
+};
+
+// Chooses all legal actions with equal probability. This is equivalent to the
+// tabular version, except that this works for large games.
+class UniformPolicy : public Policy {
+ public:
+  ActionsAndProbs GetStatePolicy(const State& state) const {
+    ActionsAndProbs probs;
+    std::vector<Action> actions = state.LegalActions();
+    probs.reserve(actions.size());
+    absl::c_for_each(actions, [&probs, &actions](Action a) {
+      probs.push_back({a, 1. / static_cast<double>(actions.size())});
+    });
+    return probs;
+  }
 };
 
 // Returns the probability for the specified action, or -1 if not found.
 double GetProb(const ActionsAndProbs& action_and_probs, Action action);
 
 // Helper functions that generate policies for testing.
-TabularPolicy GetEmptyTabularPolicy(const Game& game);
+TabularPolicy GetEmptyTabularPolicy(const Game& game,
+                                    bool initialize_to_uniform = false);
 TabularPolicy GetUniformPolicy(const Game& game);
 TabularPolicy GetRandomPolicy(const Game& game, int seed = 0);
 TabularPolicy GetFirstActionPolicy(const Game& game);

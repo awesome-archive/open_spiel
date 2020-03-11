@@ -18,10 +18,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+import pickle
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 
+from open_spiel.python.games import tic_tac_toe
 import pyspiel
 
 # Put a bound on length of game so test does not timeout.
@@ -30,22 +33,19 @@ MAX_ACTIONS_PER_GAME = 1000
 # All games registered in the main spiel library.
 SPIEL_GAMES_LIST = pyspiel.registered_games()
 
+# All games loadable without parameter values.
+SPIEL_LOADABLE_GAMES_LIST = [g for g in SPIEL_GAMES_LIST if g.default_loadable]
 
-# Check for mandatory parameters.
-def _has_mandatory_params(game):
-  return any(p.is_mandatory for p in game.parameter_specification.values())
-
-
-# All games without mandatory parameters.
-SPIEL_LOADABLE_GAMES_LIST = [
-    g for g in SPIEL_GAMES_LIST if not _has_mandatory_params(g)
-]
+# TODO(b/141950198): Stop hard-coding the number of loadable games.
+assert len(SPIEL_LOADABLE_GAMES_LIST) >= 38, len(SPIEL_LOADABLE_GAMES_LIST)
 
 # All simultaneous games.
 SPIEL_SIMULTANEOUS_GAMES_LIST = [
     g for g in SPIEL_LOADABLE_GAMES_LIST
     if g.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS
 ]
+assert len(SPIEL_SIMULTANEOUS_GAMES_LIST) >= 14, len(
+    SPIEL_SIMULTANEOUS_GAMES_LIST)
 
 # All multiplayer games. This is a list of (game, num_players) pairs to test.
 SPIEL_MULTIPLAYER_GAMES_LIST = [
@@ -53,41 +53,76 @@ SPIEL_MULTIPLAYER_GAMES_LIST = [
     (g, p)
     for g in SPIEL_LOADABLE_GAMES_LIST
     for p in range(max(g.min_num_players, 2), 1 + min(g.max_num_players, 6))
-    if g.max_num_players > 2 and g.max_num_players > g.min_num_players
+    if g.max_num_players > 2 and g.max_num_players > g.min_num_players and
+    g.short_name != "tiny_hanabi"  # default payoff only works for 2p
+    # cannot change the number of players without changing other parameters
+    and g.short_name != "universal_poker"
 ]
+assert len(SPIEL_MULTIPLAYER_GAMES_LIST) >= 35, len(
+    SPIEL_MULTIPLAYER_GAMES_LIST)
+
+
+def find_file(filename, levels):
+  if os.path.isfile(filename):
+    return filename
+  else:
+    for _ in range(levels):
+      filename = "../" + filename
+      if os.path.isfile(filename):
+        return filename
+  return None
 
 
 class GamesSimTest(parameterized.TestCase):
 
   def apply_action(self, state, action):
     if state.is_simultaneous_node():
+      assert isinstance(action, list)
       state.apply_actions(action)
     else:
       state.apply_action(action)
 
   def apply_action_test_clone(self, state, action):
-    """Apply the action and test the clone method if it's implemented."""
+    """Applies the action and tests the clone method if it's implemented."""
     try:
       state_clone = state.clone()
-      self.assertEqual(str(state), str(state_clone))
-      self.assertEqual(state.history(), state_clone.history())
-      self.apply_action(state, action)
-      self.apply_action(state_clone, action)
-      self.assertEqual(str(state), str(state_clone))
-      self.assertEqual(state.history(), state_clone.history())
     except Exception:  # pylint: disable=broad-except
       self.apply_action(state, action)
+      return
+    self.assertEqual(str(state), str(state_clone))
+    self.assertEqual(state.history(), state_clone.history())
+    self.apply_action(state, action)
+    self.apply_action(state_clone, action)
+    self.assertEqual(str(state), str(state_clone))
+    self.assertEqual(state.history(), state_clone.history())
 
-  def serialize_deserialize(self, game, state):
-    ser_str = pyspiel.serialize_game_and_state(game, state)
-    new_game, new_state = pyspiel.deserialize_game_and_state(ser_str)
-    self.assertEqual(str(game), str(new_game))
-    self.assertEqual(str(state), str(new_state))
+  def serialize_deserialize(self, game, state, check_pyspiel_serialization,
+                            check_pickle_serialization):
+    # OpenSpiel native serialization
+    if check_pyspiel_serialization:
+      ser_str = pyspiel.serialize_game_and_state(game, state)
+      new_game, new_state = pyspiel.deserialize_game_and_state(ser_str)
+      self.assertEqual(str(game), str(new_game))
+      self.assertEqual(str(state), str(new_state))
+    if check_pickle_serialization:
+      # Pickle serialization + deserialization (of the state).
+      pickled_state = pickle.dumps(state)
+      unpickled_state = pickle.loads(pickled_state)
+      self.assertEqual(str(state), str(unpickled_state))
 
-  def sim_game(self, game):
+  def sim_game(self,
+               game,
+               check_pyspiel_serialization=True,
+               check_pickle_serialization=True):
     min_utility = game.min_utility()
     max_utility = game.max_utility()
     self.assertLess(min_utility, max_utility)
+
+    if check_pickle_serialization:
+      # Pickle serialization + deserialization (of the game).
+      pickled_game = pickle.dumps(game)
+      unpickled_game = pickle.loads(pickled_game)
+      self.assertEqual(str(game), str(unpickled_game))
 
     # Get a new state
     state = game.new_initial_state()
@@ -100,7 +135,8 @@ class GamesSimTest(parameterized.TestCase):
 
       # Serialize/Deserialize is costly. Only do it every power of 2 actions.
       if total_actions >= next_serialize_check:
-        self.serialize_deserialize(game, state)
+        self.serialize_deserialize(game, state, check_pyspiel_serialization,
+                                   check_pickle_serialization)
         next_serialize_check *= 2
 
       # The state can be three different types: chance node,
@@ -121,10 +157,6 @@ class GamesSimTest(parameterized.TestCase):
         # Apply the joint action and test cloning states.
         self.apply_action_test_clone(state, chosen_actions)
       else:
-        if state.is_terminal():
-          self.assertEmpty(state.legal_actions())
-          for player in range(game.num_players()):
-            self.assertEmpty(state.legal_actions(player))
         # Decision node: sample action for the single current player
         action = np.random.choice(state.legal_actions(state.current_player()))
         # Apply action and test state cloning.
@@ -136,6 +168,10 @@ class GamesSimTest(parameterized.TestCase):
 
     # Either the game is now done, or the maximum actions has been taken.
     if state.is_terminal():
+      # Check there are no legal actions.
+      self.assertEmpty(state.legal_actions())
+      for player in range(game.num_players()):
+        self.assertEmpty(state.legal_actions(player))
       # Print utilities for each player.
       utilities = state.returns()
       # Check that each one is in range
@@ -176,6 +212,44 @@ class GamesSimTest(parameterized.TestCase):
     # make a smaller lower win score
     game = pyspiel.load_game("pig(players=2,winscore=15)")
     self.sim_game(game)
+
+  def test_python_tic_tac_toe(self):
+    # run this test to a Python-only game
+    game = tic_tac_toe.TicTacToeGame()
+    for _ in range(0, 100):
+      # cannot use pyspiel's serialization since the python-only games don't
+      # implement them
+      self.sim_game(
+          game,
+          check_pyspiel_serialization=False,
+          check_pickle_serialization=True)
+
+  def test_efg_game(self):
+    game = pyspiel.load_efg_game(pyspiel.get_sample_efg_data())
+    # EFG games loaded directly by string cannot serialize because the game's
+    # data cannot be passed in via string parameter.
+    for _ in range(0, 100):
+      self.sim_game(
+          game,
+          check_pyspiel_serialization=False,
+          check_pickle_serialization=False)
+    game = pyspiel.load_efg_game(pyspiel.get_kuhn_poker_efg_data())
+    for _ in range(0, 100):
+      self.sim_game(
+          game,
+          check_pyspiel_serialization=False,
+          check_pickle_serialization=False)
+    # EFG games loaded by file should serialize properly:
+    filename = find_file("open_spiel/games/efg/sample.efg", 2)
+    if filename is not None:
+      game = pyspiel.load_game("efg_game(filename=" + filename + ")")
+      for _ in range(0, 100):
+        self.sim_game(game)
+    filename = find_file("open_spiel/games/efg/sample.efg", 2)
+    if filename is not None:
+      game = pyspiel.load_game("efg_game(filename=" + filename + ")")
+      for _ in range(0, 100):
+        self.sim_game(game)
 
 
 if __name__ == "__main__":

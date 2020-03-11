@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+import pyspiel
 
 # Indices in the information sets for the regrets and average policy sums.
 _REGRET_INDEX = 0
@@ -44,6 +45,11 @@ class OutcomeSamplingSolver(object):
     # updating player will sampling according to expl * uniform + (1 - expl) *
     # current_policy.
     self._expl = 0.6
+
+    assert game.get_type().dynamics == pyspiel.GameType.Dynamics.SEQUENTIAL, (
+        "MCCFR requires sequential games. If you're trying to run it " +
+        "on a simultaneous (or normal-form) game, please first transform it " +
+        "using turn_based_simultaneous_game.")
 
   def iteration(self):
     """Performs one iteration of outcome sampling.
@@ -94,7 +100,7 @@ class OutcomeSamplingSolver(object):
     """
 
     def wrap(state):
-      info_state_key = state.information_state(state.current_player())
+      info_state_key = state.information_state_string(state.current_player())
       legal_actions = state.legal_actions()
       infostate_info = self._lookup_infostate_info(info_state_key,
                                                    len(legal_actions))
@@ -153,7 +159,7 @@ class OutcomeSamplingSolver(object):
                            sample_reach)
 
     cur_player = state.current_player()
-    info_state_key = state.information_state(cur_player)
+    info_state_key = state.information_state_string(cur_player)
     legal_actions = state.legal_actions()
     num_legal_actions = len(legal_actions)
     infostate_info = self._lookup_infostate_info(info_state_key,

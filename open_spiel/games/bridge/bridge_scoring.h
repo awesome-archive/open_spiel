@@ -22,12 +22,13 @@
 namespace open_spiel {
 namespace bridge {
 
-enum Suit { kClubs = 0, kDiamonds, kHearts, kSpades, kNone };
+enum Denomination { kClubs = 0, kDiamonds, kHearts, kSpades, kNoTrump };
 enum DoubleStatus { kUndoubled = 1, kDoubled = 2, kRedoubled = 4 };
+constexpr char kDenominationChar[] = "CDHSN";
 
 struct Contract {
   int level;
-  Suit trumps;
+  Denomination trumps;
   DoubleStatus double_status;
   int declarer;
 };

@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 from absl.testing import parameterized
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import eva
@@ -100,7 +100,7 @@ class QueryableFixedSizeRingBufferTest(tf.test.TestCase):
     self.assertIn("entry2", samples)
     self.assertIn("entry3", samples)
 
-  # TODO Test knn query.
+  # TODO(author6) Test knn query.
 
 
 if __name__ == "__main__":

@@ -18,13 +18,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import unittest
+from absl.testing import absltest
 
 from open_spiel.python.algorithms import sequence_form_lp
 import pyspiel
 
 
-class SFLPTest(unittest.TestCase):
+class SFLPTest(absltest.TestCase):
 
   def test_rock_paper_scissors(self):
     game = pyspiel.load_game_as_turn_based("matrix_rps")
@@ -34,6 +34,13 @@ class SFLPTest(unittest.TestCase):
 
   def test_kuhn_poker(self):
     game = pyspiel.load_game("kuhn_poker")
+    val1, val2, _, _ = sequence_form_lp.solve_zero_sum_game(game)
+    # value from Kuhn 1950 or https://en.wikipedia.org/wiki/Kuhn_poker
+    self.assertAlmostEqual(val1, -1 / 18)
+    self.assertAlmostEqual(val2, +1 / 18)
+
+  def test_kuhn_poker_efg(self):
+    game = pyspiel.load_efg_game(pyspiel.get_kuhn_poker_efg_data())
     val1, val2, _, _ = sequence_form_lp.solve_zero_sum_game(game)
     # value from Kuhn 1950 or https://en.wikipedia.org/wiki/Kuhn_poker
     self.assertAlmostEqual(val1, -1 / 18)
@@ -60,7 +67,7 @@ class SFLPTest(unittest.TestCase):
     self.assertAlmostEqual(val1, 0)
     self.assertAlmostEqual(val2, 0)
 
-  # TODO: currently does not work because TTT's information state is
+  # TODO(author5): currently does not work because TTT's information state is
   # not perfect recall. Enable this test when fixed.
   # def test_tictactoe(self):
   #   game = pyspiel.load_game("tic_tac_toe")
@@ -72,7 +79,7 @@ class SFLPTest(unittest.TestCase):
   # supported within google's internal cvxopt import. When solving via glpk,
   # (locally, outside of google's testing framework), the test takes >300
   # seconds, so it is disabled by default, but still left here for reference.
-  # Note, value is taken from an indepedent implementation but also found in
+  # Note, value is taken from an independent implementation but also found in
   # Neller & Lanctot 2013, An Introduction to Counterfactual Regret Minimization
   # http://modelai.gettysburg.edu/2013/cfr/cfr.pdf
   #
@@ -84,4 +91,4 @@ class SFLPTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

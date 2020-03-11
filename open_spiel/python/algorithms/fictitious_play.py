@@ -46,7 +46,7 @@ def _callable_tabular_policy(tabular_policy):
   """
 
   def wrap(state):
-    infostate_key = state.information_state(state.current_player())
+    infostate_key = state.information_state_string(state.current_player())
     assert infostate_key in tabular_policy
     ap_list = []
     for action in state.legal_actions():
@@ -87,7 +87,7 @@ def _full_best_response_policy(br_infoset_dict):
   """
 
   def wrap(state):
-    infostate_key = state.information_state(state.current_player())
+    infostate_key = state.information_state_string(state.current_player())
     br_action = br_infoset_dict[infostate_key]
     ap_list = []
     for action in state.legal_actions():
@@ -129,9 +129,9 @@ class XFPSolver(object):
     Arguments:
       game: the open_spiel game object.
       save_oracles: a boolean, indicating whether or not to save all the BR
-        policies along the way (including the initial unifom policy). This could
-        take up some space, and is only used when generating the meta-game for
-        analysis.
+        policies along the way (including the initial uniform policy). This
+        could take up some space, and is only used when generating the meta-game
+        for analysis.
     """
 
     self._game = game
@@ -170,10 +170,10 @@ class XFPSolver(object):
 
   def iteration(self):
     self._iterations += 1
-    self.compute_best_reponses()
+    self.compute_best_responses()
     self.update_average_policies()
 
-  def compute_best_reponses(self):
+  def compute_best_responses(self):
     """Updates self._oracles to hold best responses for each player."""
     for i in range(self._num_players):
       # Compute a best response policy to pi_{-i}.
@@ -216,7 +216,7 @@ class XFPSolver(object):
       avg_policy = _policy_dict_at_state(self._policies[player], state)
       br_policy = _policy_dict_at_state(self._best_responses[player], state)
       legal_actions = state.legal_actions()
-      infostate_key = state.information_state(player)
+      infostate_key = state.information_state_string(player)
       # First traverse the subtrees.
       for action in legal_actions:
         assert action in br_policy

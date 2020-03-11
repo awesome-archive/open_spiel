@@ -18,7 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import unittest
+from absl.testing import absltest
 
 # pylint: disable=g-import-not-at-top
 import matplotlib
@@ -32,7 +32,7 @@ from open_spiel.python.egt import utils
 import pyspiel
 
 
-class AlphaRankTest(unittest.TestCase):
+class AlphaRankTest(absltest.TestCase):
 
   def test_stationary_distribution(self):
     """Tests stationary distribution using payoffs from Han et al., 2013."""
@@ -68,7 +68,7 @@ class AlphaRankTest(unittest.TestCase):
     """Tests closed-form transition matrix computation for constant-sum case."""
 
     game = pyspiel.load_matrix_game("matrix_rps")
-    payoff_tables = utils.nfg_to_ndarray(game)
+    payoff_tables = utils.game_payoffs_array(game)
 
     # Checks if the game is symmetric and runs single-population analysis if so
     _, payoff_tables = utils.is_symmetric_matrix_game(payoff_tables)
@@ -98,4 +98,4 @@ class AlphaRankTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

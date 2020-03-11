@@ -18,6 +18,7 @@ Names are ordered lexicographically. Typo or similar contributors are omitted.
 -   Julian Schrittwieser
 -   Julien Perolat
 -   Karl Tuyls
+-   Manuel Kroiss
 -   Marc Lanctot <lanctot@google.com>
 -   Matthew Lai
 -   Paul Muller
@@ -26,8 +27,9 @@ Names are ordered lexicographically. Typo or similar contributors are omitted.
 -   Sebastian Borgeaud
 -   Shayegan Omidshafiei
 -   Srinivasan Sriram
--   Timo Ewalds <tewalds@google.com>
 -   Thomas Anthony
+-   Thomas Köppe
+-   Timo Ewalds <tewalds@google.com>
 -   Vinicius Zambaldi <vzambaldi@google.com>
 
 ## OpenSpiel with Swift for Tensorflow
@@ -35,3 +37,8 @@ Names are ordered lexicographically. Typo or similar contributors are omitted.
 -   James Bradbury <jekbradbury@google.com>
 -   Brennan Saeta <saeta@google.com>
 -   Dan Zheng <danielzheng@google.com>
+
+## External contributors
+
+See
+[https://github.com/deepmind/open_spiel/graphs/contributors](https://github.com/deepmind/open_spiel/graphs/contributors).

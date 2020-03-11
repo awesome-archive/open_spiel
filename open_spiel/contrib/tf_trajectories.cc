@@ -21,9 +21,9 @@
 #include <random>
 #include <vector>
 
+#include "open_spiel/abseil-cpp/absl/random/uniform_int_distribution.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_join.h"
 #include "third_party/eigen3/unsupported/Eigen/CXX11/src/Tensor/TensorMap.h"
-#include "open_spiel/spiel_optional.h"
 #include "open_spiel/spiel_utils.h"
 
 namespace open_spiel {
@@ -43,7 +43,7 @@ TFBatchTrajectoryRecorder::TFBatchTrajectoryRecorder(
       graph_filename_(graph_filename),
       rng_(),
       dist_(0.0, 1.0),
-      flat_input_size_(game_->InformationStateNormalizedVectorSize()),
+      flat_input_size_(game_->InformationStateTensorSize()),
       num_actions_(game_->NumDistinctActions()) {
   TF_CHECK_OK(
       ReadBinaryProto(tf::Env::Default(), graph_filename_, &graph_def_));
@@ -61,7 +61,7 @@ void TFBatchTrajectoryRecorder::SampleChance(int idx) {
   while (states_[idx]->IsChanceNode()) {
     std::vector<std::pair<open_spiel::Action, double>> outcomes =
         states_[idx]->ChanceOutcomes();
-    Action action = open_spiel::SampleChanceOutcome(outcomes, dist_(rng_));
+    Action action = open_spiel::SampleAction(outcomes, dist_(rng_)).first;
     states_[idx]->ApplyAction(action);
   }
 
@@ -83,7 +83,7 @@ void TFBatchTrajectoryRecorder::GetNextStatesUniform() {
   for (int b = 0; b < batch_size_; ++b) {
     if (!terminal_flags_[b]) {
       std::vector<Action> actions = states_[b]->LegalActions();
-      std::uniform_int_distribution<> dist(0, actions.size() - 1);
+      absl::uniform_int_distribution<> dist(0, actions.size() - 1);
       Action action = actions[dist(rng_)];
       states_[b]->ApplyAction(action);
       SampleChance(b);
@@ -127,8 +127,8 @@ void TFBatchTrajectoryRecorder::FillInputsAndMasks() {
         mask_matrix(b, a) = mask[a];
       }
 
-      states_[b]->InformationStateAsNormalizedVector(
-          states_[b]->CurrentPlayer(), &info_state_vector);
+      states_[b]->InformationStateTensor(states_[b]->CurrentPlayer(),
+                                         &info_state_vector);
       for (int i = 0; i < info_state_vector.size(); ++i) {
         inputs_matrix(b, i) = info_state_vector[i];
       }

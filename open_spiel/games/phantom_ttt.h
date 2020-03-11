@@ -17,10 +17,11 @@
 
 #include <array>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "./tic_tac_toe.h"
+#include "open_spiel/games/tic_tac_toe.h"
 #include "open_spiel/spiel.h"
 
 // Phantom Tic-Tac-Toe is a phantom version of the classic game of Tic-Tac-Toe
@@ -41,11 +42,11 @@
 namespace open_spiel {
 namespace phantom_ttt {
 
-constexpr const char* kDefaultObsType = "reveal-nothing";
+inline constexpr const char* kDefaultObsType = "reveal-nothing";
 
 // Longest sequence is 17 moves, e.g. 0011223344556677889
-constexpr int kLongestSequence = 2 * tic_tac_toe::kNumCells - 1;
-constexpr int kBitsPerAction = 10;  // Reserve 9 as "I don't know."
+inline constexpr int kLongestSequence = 2 * tic_tac_toe::kNumCells - 1;
+inline constexpr int kBitsPerAction = 10;  // Reserve 9 as "I don't know."
 
 enum class ObservationType {
   kRevealNothing,
@@ -55,42 +56,38 @@ enum class ObservationType {
 // State of an in-play game.
 class PhantomTTTState : public State {
  public:
-  PhantomTTTState(int num_distinct_actions, ObservationType obs_type);
+  PhantomTTTState(std::shared_ptr<const Game> game, ObservationType obs_type);
 
   // Forward to underlying game state
-  int CurrentPlayer() const override { return state_.CurrentPlayer(); }
-  std::string ActionToString(int player, Action action_id) const {
+  Player CurrentPlayer() const override { return state_.CurrentPlayer(); }
+  std::string ActionToString(Player player, Action action_id) const override {
     return state_.ActionToString(player, action_id);
   }
   std::string ToString() const override { return state_.ToString(); }
   bool IsTerminal() const override { return state_.IsTerminal(); }
   std::vector<double> Returns() const override { return state_.Returns(); }
-  std::string Observation(int player) const override {
-    return state_.Observation(player);
-  }
-  void ObservationAsNormalizedVector(
-      int player, std::vector<double>* values) const override {
-    state_.ObservationAsNormalizedVector(player, values);
-  }
+  std::string ObservationString(Player player) const override;
+  void ObservationTensor(Player player,
+                         std::vector<double>* values) const override;
 
   // These are implemented for phantom games
-  std::string InformationState(int player) const override;
-  void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string InformationStateString(Player player) const override;
+  void InformationStateTensor(Player player,
+                              std::vector<double>* values) const override;
   std::unique_ptr<State> Clone() const override;
-  void UndoAction(int player, Action move) override;
+  void UndoAction(Player player, Action move) override;
   std::vector<Action> LegalActions() const override;
 
  protected:
   void DoApplyAction(Action move) override;
 
  private:
-  std::string ViewToString(int player) const;
-  std::string ActionSequenceToString(int player) const;
+  std::string ViewToString(Player player) const;
+  std::string ActionSequenceToString(Player player) const;
 
   tic_tac_toe::TicTacToeState state_;
   ObservationType obs_type_;
-  // TODO: Use the base class history_ instead.
+  // TODO(author2): Use the base class history_ instead.
   std::vector<std::pair<int, Action>> action_sequence_;
   std::array<tic_tac_toe::CellState, tic_tac_toe::kNumCells> x_view_;
   std::array<tic_tac_toe::CellState, tic_tac_toe::kNumCells> o_view_;
@@ -102,26 +99,26 @@ class PhantomTTTGame : public Game {
   explicit PhantomTTTGame(const GameParameters& params);
   std::unique_ptr<State> NewInitialState() const override {
     return std::unique_ptr<State>(
-        new PhantomTTTState(NumDistinctActions(), obs_type_));
+        new PhantomTTTState(shared_from_this(), obs_type_));
   }
-  int NumDistinctActions() const override { return game_.NumDistinctActions(); }
-  int NumPlayers() const override { return game_.NumPlayers(); }
-  double MinUtility() const override { return game_.MinUtility(); }
-  double UtilitySum() const override { return game_.UtilitySum(); }
-  double MaxUtility() const override { return game_.MaxUtility(); }
-  std::vector<int> ObservationNormalizedVectorShape() const {
-    return game_.ObservationNormalizedVectorShape();
+  int NumDistinctActions() const override {
+    return game_->NumDistinctActions();
   }
+  int NumPlayers() const override { return game_->NumPlayers(); }
+  double MinUtility() const override { return game_->MinUtility(); }
+  double UtilitySum() const override { return game_->UtilitySum(); }
+  double MaxUtility() const override { return game_->MaxUtility(); }
 
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new PhantomTTTGame(*this));
+  std::shared_ptr<const Game> Clone() const override {
+    return std::shared_ptr<const Game>(new PhantomTTTGame(*this));
   }
-  // This will depend on the obstype parameter.
-  std::vector<int> InformationStateNormalizedVectorShape() const override;
-  int MaxGameLength() const { return kLongestSequence; }
+  // These will depend on the obstype parameter.
+  std::vector<int> InformationStateTensorShape() const override;
+  std::vector<int> ObservationTensorShape() const override;
+  int MaxGameLength() const override { return kLongestSequence; }
 
  private:
-  tic_tac_toe::TicTacToeGame game_;
+  std::shared_ptr<const tic_tac_toe::TicTacToeGame> game_;
   ObservationType obs_type_;
 };
 

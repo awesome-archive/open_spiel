@@ -1,3 +1,22 @@
+## First examples
+
+One can run an example of a game running (in the `build/` folder):
+
+```bash
+./examples/example --game=tic_tac_toe
+```
+
+Similar examples using the Python API (run from one above `build`):
+
+```bash
+# Similar to the C++ example:
+python3 open_spiel/python/examples/example.py --game=breakthrough
+
+# Play a game against a random or MCTS bot:
+python3 open_spiel/python/examples/mcts.py --game=tic_tac_toe --player1=human --player2=random
+python3 open_spiel/python/examples/mcts.py --game=tic_tac_toe --player1=human --player2=mcts
+```
+
 ## Concepts
 
 The following documentation describes the high-level concepts. Refer to the code
@@ -29,10 +48,10 @@ players. Transitions are actions taken by players (in case of a simultaneous
 node, the transition is composed of the actions for all players).
 
 Note that in most games, we deal with chance (i.e. any source of randomness)
-using a an explicit player (the "chance" player, which internally has id -1").
-For example, in Poker, the root state would just be the players without any
-cards, and the first transitions will be chance nodes to deal the cards to the
-players (in practice once card is dealt per transition).
+using a an explicit player (the "chance" player, which has id
+`kChancePlayerId`). For example, in Poker, the root state would just be the
+players without any cards, and the first transitions will be chance nodes to
+deal the cards to the players (in practice once card is dealt per transition).
 
 See `spiel.h` for the full API description. For example,
 `game.NewInitialState()` will return the root `State`. Then,
@@ -53,8 +72,8 @@ defaults). There are 2 ways to create a game:
     Python, is a dictionary from argument name to
     `pyspiel.GameParameter`-wrapped values e.g. `{"players":
     pyspiel.GameParameter(3)}`), with `LoadGame`.
-*   Using a string representation such as `kugn_poker(players=3)`, giving
-    `LoadGame(kugn_poker(players=3))`. See `open_spiel/game_parameters.cc` for
+*   Using a string representation such as `kuhn_poker(players=3)`, giving
+    `LoadGame(kuhn_poker(players=3))`. See `open_spiel/game_parameters.cc` for
     the exact syntax.
 
 #### Creating sequential games from simultaneous games
@@ -75,6 +94,7 @@ Here are for example the Python code to play one trajectory:
 ```python
 import random
 import pyspiel
+import numpy as np
 
 game = pyspiel.load_game("kuhn_poker")
 state = game.new_initial_state()

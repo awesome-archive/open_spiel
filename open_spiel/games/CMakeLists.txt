@@ -1,28 +1,44 @@
-add_library (games OBJECT
+set(GAME_SOURCES
   backgammon.cc
   backgammon.h
   blotto.cc
   blotto.h
   breakthrough.cc
   breakthrough.h
+  bridge.cc
+  bridge.h
   bridge/bridge_scoring.cc
   bridge/bridge_scoring.h
   bridge_uncontested_bidding.cc
   bridge_uncontested_bidding.h
+  catch.cc
+  catch.h
   chess.cc
   chess.h
   chess/chess_board.cc
   chess/chess_board.h
   chess/chess_common.cc
   chess/chess_common.h
+  cliff_walking.cc
+  cliff_walking.h
   coin_game.cc
   coin_game.h
   connect_four.cc
   connect_four.h
   coop_box_pushing.cc
   coop_box_pushing.h
+  cursor_go.cc
+  cursor_go.h
+  deep_sea.cc
+  deep_sea.h
+  efg_game.cc
+  efg_game.h
   first_sealed_auction.cc
   first_sealed_auction.h
+  gin_rummy.cc
+  gin_rummy.h
+  gin_rummy/gin_rummy_utils.cc
+  gin_rummy/gin_rummy_utils.h
   go.cc
   go.h
   go/go_board.cc
@@ -35,6 +51,8 @@ add_library (games OBJECT
   hex.h
   kuhn_poker.cc
   kuhn_poker.h
+  laser_tag.cc
+  laser_tag.h
   leduc_poker.cc
   leduc_poker.h
   liars_dice.cc
@@ -44,6 +62,8 @@ add_library (games OBJECT
   matching_pennies_3p.cc
   matching_pennies_3p.h
   matrix_games.cc
+  negotiation.cc
+  negotiation.h
   oshi_zumo.cc
   oshi_zumo.h
   oware.cc
@@ -56,14 +76,40 @@ add_library (games OBJECT
   phantom_ttt.h
   pig.cc
   pig.h
+  quoridor.cc
+  quoridor.h
+  skat.cc
+  skat.h
   tic_tac_toe.cc
   tic_tac_toe.h
   tiny_bridge.cc
   tiny_bridge.h
+  tiny_hanabi.cc
+  tiny_hanabi.h
   y.cc
   y.h
 )
+
+if (${BUILD_WITH_HANABI})
+  set(GAME_SOURCES ${GAME_SOURCES} hanabi.cc hanabi.h)
+endif()
+if (${BUILD_WITH_ACPC})
+  set(GAME_SOURCES ${GAME_SOURCES} universal_poker.cc universal_poker.h)
+endif()
+
+add_library (games OBJECT ${GAME_SOURCES})
+
 target_include_directories (games PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+if (${BUILD_WITH_HANABI})
+  add_subdirectory (hanabi)
+endif()
+if (${BUILD_WITH_ACPC})
+  add_subdirectory(universal_poker)
+endif()
+
+# Uncomment to build the Ludii demo
+# add_subdirectory (ludii)
 
 add_library(bridge_double_dummy_solver OBJECT
   bridge/double_dummy_solver/include/dll.h
@@ -143,9 +189,17 @@ add_executable(bridge_test bridge_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(bridge_test bridge_test)
 
+add_executable(catch_test catch_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(catch_test catch_test)
+
 add_executable(chess_test chess_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(chess_test chess_test)
+
+add_executable(cliff_walking_test cliff_walking_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(cliff_walking_test cliff_walking_test)
 
 add_executable(coin_game_test coin_game_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
@@ -162,10 +216,27 @@ add_executable(coop_box_pushing_test coop_box_pushing_test.cc
                $<TARGET_OBJECTS:tests>)
 add_test(coop_box_pushing_test coop_box_pushing_test)
 
+add_executable(cursor_go_test cursor_go_test.cc
+               ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(cursor_go_test cursor_go_test)
+
+add_executable(deep_sea_test deep_sea_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(deep_sea_test deep_sea_test)
+
+add_executable(efg_game_test efg_game_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(efg_game_test efg_game_test)
+
 add_executable(first_sealed_auction_test first_sealed_auction_test.cc
                ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(first_sealed_auction_test first_sealed_auction_test)
+
+add_executable(gin_rummy_test gin_rummy_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(gin_rummy_test gin_rummy_test)
 
 add_executable(go_test go_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
@@ -213,6 +284,11 @@ add_executable(matrix_games_test matrix_games_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(matrix_games_test matrix_games_test)
 
+add_executable(negotiation_test negotiation_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>
+               $<TARGET_OBJECTS:algorithms>)
+add_test(negotiation_test negotiation_test)
+
 add_executable(oshi_zumo_test oshi_zumo_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
                $<TARGET_OBJECTS:algorithms>)
@@ -235,14 +311,38 @@ add_executable(pig_test pig_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(pig_test pig_test)
 
+add_executable(quoridor_test quoridor_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(quoridor_test quoridor_test)
+
+add_executable(skat_test skat_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(skat_test skat_test)
+
 add_executable(tic_tac_toe_test tic_tac_toe_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(tic_tac_toe_test tic_tac_toe_test)
+
+add_executable(laser_tag_test laser_tag_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(laser_tag_test laser_tag_test)
 
 add_executable(tiny_bridge_test tiny_bridge_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
                $<TARGET_OBJECTS:algorithms>)
 add_test(tiny_bridge_test tiny_bridge_test)
+
+add_executable(tiny_hanabi_test tiny_hanabi_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>
+               $<TARGET_OBJECTS:algorithms>)
+add_test(tiny_hanabi_test tiny_hanabi_test)
+
+if (${BUILD_WITH_ACPC})
+  add_executable(universal_poker_test universal_poker_test.cc ${OPEN_SPIEL_OBJECTS}
+          $<TARGET_OBJECTS:tests>
+          $<TARGET_OBJECTS:algorithms>)
+  add_test(universal_poker_test.cc universal_poker_test)
+endif()
 
 add_executable(y_test y_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)

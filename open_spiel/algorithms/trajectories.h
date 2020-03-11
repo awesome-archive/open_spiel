@@ -45,7 +45,7 @@ struct BatchedTrajectory {
   int batch_size;
 
   // Observations is an optional field that corresponds to the results of
-  // calling State::InformationStateAsNormalizedVector. Only one of observations
+  // calling State::InformationStateTensor. Only one of observations
   // and state_indices will be filled out for any given instance of
   // BatchedTrajectory.
   std::vector<std::vector<std::vector<double>>> observations;
@@ -73,7 +73,7 @@ struct BatchedTrajectory {
 };
 
 // If include_full_observations is true, then we record the result of
-// open_spiel::State::InformationStateAsNormalizedVector(); otherwise, we store
+// open_spiel::State::InformationStateTensor(); otherwise, we store
 // the index (taken from state_to_index).
 BatchedTrajectory RecordTrajectory(
     const Game& game, const std::vector<TabularPolicy>& policies,
@@ -120,7 +120,7 @@ class TrajectoryRecorder {
 
   BatchedTrajectory RecordBatch(const std::vector<TabularPolicy>& policies,
                                 int batch_size, int max_unroll_length) {
-    bool include_full_observations = !state_to_index_.empty();
+    const bool include_full_observations = state_to_index_.empty();
     std::unique_ptr<State> root = game_->NewInitialState();
     return RecordBatchedTrajectory(*game_, policies, *root, state_to_index_,
                                    batch_size, include_full_observations, &rng_,
@@ -128,7 +128,7 @@ class TrajectoryRecorder {
   }
 
  private:
-  std::unique_ptr<Game> game_;
+  std::shared_ptr<const Game> game_;
 
   // Note: The key here depends on the game, and is implemented by the
   // StateKey method.

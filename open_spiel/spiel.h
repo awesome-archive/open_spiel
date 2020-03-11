@@ -19,6 +19,8 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <numeric>
+#include <optional>
 #include <random>
 #include <sstream>
 #include <string>
@@ -26,6 +28,8 @@
 #include <utility>
 #include <vector>
 
+#include "open_spiel/abseil-cpp/absl/random/bit_gen_ref.h"
+#include "open_spiel/abseil-cpp/absl/strings/str_join.h"
 #include "open_spiel/game_parameters.h"
 #include "open_spiel/spiel_utils.h"
 
@@ -45,7 +49,7 @@ enum PlayerId {
 };
 
 // Constant representing an invalid action.
-constexpr Action kInvalidAction = -1;
+inline constexpr Action kInvalidAction = -1;
 
 // Static information for a game. This will determine what algorithms are
 // applicable. For example, minimax search is only applicable to two-player,
@@ -64,7 +68,7 @@ struct GameType {
 
   // Is the game one-player-at-a-time or do players act simultaneously?
   enum class Dynamics {
-    kSimultaneous,  // Every player acts at each stage.
+    kSimultaneous,  // In some or all nodes every player acts.
     kSequential,    // Turn-based games.
   };
   Dynamics dynamics;
@@ -117,23 +121,25 @@ struct GameType {
   // Which type of information state representations are supported?
   // The information state is a perfect-recall state-of-the-game from the
   // perspective of one player.
-  bool provides_information_state;
-  bool provides_information_state_as_normalized_vector;
+  bool provides_information_state_string;
+  bool provides_information_state_tensor;
 
   // Which type of observation representations are supported?
   // The observation is some subset of the information state with the property
   // that remembering all the player's observations and actions is sufficient
   // to reconstruct the information state.
-  bool provides_observation;
-  bool provides_observation_as_normalized_vector;
+  bool provides_observation_string;
+  bool provides_observation_tensor;
 
-  // The parameters that can be supplied when creating an instance of the game.
-  struct ParameterSpec {
-    GameParameter::Type type;  // Parameter type.
-    bool is_mandatory;         // True if the parameter must be supplied.
-  };
-  std::map<std::string, ParameterSpec> parameter_specification;
+  std::map<std::string, GameParameter> parameter_specification;
   bool ContainsRequiredParameters() const;
+
+  // A number of optional values that have defaults, whose values can be
+  // overridden in each game.
+
+  // Can the game be loaded with no parameters? It is strongly recommended that
+  // games be loadable with sen
+  bool default_loadable = true;
 };
 
 enum class StateType {
@@ -151,23 +157,42 @@ std::ostream& operator<<(std::ostream& stream, GameType::Utility value);
 // The probability of taking each possible action in a particular info state.
 using ActionsAndProbs = std::vector<std::pair<Action, double>>;
 
+// Layouts for 3-D tensors. For 2-D tensors, we assume that the layout is a
+// single spatial dimension and a channel dimension. If a 2-D tensor should be
+// interpreted as a 2-D space, report it as 3-D with a channel dimension of
+// size 1. We have no standard for higher-dimensional tensors.
+enum class TensorLayout {
+  kHWC,  // indexes are in the order (height, width, channels)
+  kCHW,  // indexes are in the order (channels, height, width)
+};
+
+// Forward declaration needed for the backpointer within State.
+class Game;
+
 // An abstract class that represents a state of the game.
 class State {
  public:
   virtual ~State() = default;
-  // Derived classes must call one of these constructors.
-  State(int num_distinct_actions, int num_players)
-      : num_distinct_actions_(num_distinct_actions),
-        num_players_(num_players) {}
+
+  // Derived classes must call one of these constructors. Note that a state must
+  // be passed a pointer to the game which created it. Some methods in some
+  // games rely on this and so it must correspond to a valid game object.
+  // The easiest way to ensure this is to use Game::NewInitialState to create
+  // new states, which will pass a pointer to the parent game object. Also,
+  // since this shared pointer to the parent is required, Game objects cannot
+  // be used as value types and should always be created via a shared pointer.
+  // See the documentation of the Game object for further details.
+  State(std::shared_ptr<const Game> game);
   State(const State&) = default;
 
   // Returns current player. Player numbers start from 0.
   // Negative numbers are for chance (-1) or simultaneous (-2).
   // kTerminalState should be returned on a TerminalNode().
-  virtual int CurrentPlayer() const = 0;
+  virtual Player CurrentPlayer() const = 0;
 
   // Change the state of the game by applying the specified action in turn-based
-  // games. This function encodes the logic of the game rules. Returns true
+  // games or in non-simultaneous nodes of simultaneous move games.
+  // This function encodes the logic of the game rules. Returns true
   // on success. In simultaneous games, returns false (ApplyActions should be
   // used in that case.)
   //
@@ -184,15 +209,16 @@ class State {
     history_.push_back(action_id);
   }
 
-  // `LegalActions(int player)` is valid for all nodes in all games, returning
-  // an empty list for players who don't act at this state.
+  // `LegalActions(Player player)` is valid for all nodes in all games,
+  // returning an empty list for players who don't act at this state. The
+  // actions should be returned in ascending order.
   //
   // This default implementation is fine for turn-based games, but should
   // be overridden by simultaneous-move games.
   //
   // Since games mostly override LegalActions(), this method will not be visible
   // in derived classes unless a using directive is added.
-  virtual std::vector<Action> LegalActions(int player) const {
+  virtual std::vector<Action> LegalActions(Player player) const {
     if (!IsTerminal() && player == CurrentPlayer()) {
       return IsChanceNode() ? LegalChanceOutcomes() : LegalActions();
     } else {
@@ -203,18 +229,19 @@ class State {
   // `LegalActions()` returns the actions for the current player (including at
   // chance nodes). All games should implement this function.
   // For any action `a`, it must hold that 0 <= `a` < NumDistinctActions().
+  // The actions should be returned in ascending order.
   // If the state is non-terminal, there must be at least one legal action.
   //
   // In simultaneous-move games, the abstract base class implements it in
   // terms of LegalActions(player) and LegalChanceOutcomes(), and so derived
-  // classes only need to implement `LegalActions(int player)`.
+  // classes only need to implement `LegalActions(Player player)`.
   // This will result in LegalActions() being hidden unless a using directive
   // is added.
   virtual std::vector<Action> LegalActions() const = 0;
 
   // Returns a vector of length `game.NumDistinctActions()` containing 1 for
   // legal actions and 0 for illegal actions.
-  std::vector<int> LegalActionsMask(int player) const {
+  std::vector<int> LegalActionsMask(Player player) const {
     std::vector<int> mask(num_distinct_actions_, 0);
     std::vector<Action> legal_actions = LegalActions(player);
 
@@ -234,7 +261,19 @@ class State {
   // for chess the string "Nf3" would correspond to different starting squares
   // in different states (and hence probably different action ids).
   // This method will format chance outcomes if player == kChancePlayer
-  virtual std::string ActionToString(int player, Action action_id) const = 0;
+  virtual std::string ActionToString(Player player, Action action_id) const = 0;
+  std::string ActionToString(Action action_id) const {
+    return ActionToString(CurrentPlayer(), action_id);
+  }
+
+  // Reverses the mapping done by ActionToString.
+  // Note: This currently just loops over all legal actions, converts them into
+  // a string, and checks equality, so it can be very slow.
+  virtual Action StringToAction(Player player,
+                                const std::string& action_str) const;
+  Action StringToAction(const std::string& action_str) const {
+    return StringToAction(CurrentPlayer(), action_str);
+  }
 
   // Returns a string representation of the state. This has no particular
   // semantics and is targeting debugging code.
@@ -271,7 +310,7 @@ class State {
 
   // Returns Reward for one player (see above for definition). If Rewards for
   // multiple players are required it is more efficient to use Rewards() above.
-  virtual double PlayerReward(int player) const {
+  virtual double PlayerReward(Player player) const {
     auto rewards = Rewards();
     SPIEL_CHECK_LT(player, rewards.size());
     return rewards[player];
@@ -279,8 +318,9 @@ class State {
 
   // Returns Return for one player (see above for definition). If Returns for
   // multiple players are required it is more efficient to use Returns() above.
-  virtual double PlayerReturn(int player) const {
+  virtual double PlayerReturn(Player player) const {
     auto returns = Returns();
+    SPIEL_CHECK_GE(player, 0);
     SPIEL_CHECK_LT(player, returns.size());
     return returns[player];
   }
@@ -288,7 +328,9 @@ class State {
   // Is this state a chance node? Chance nodes are "states" whose actions
   // represent stochastic outcomes. "Chance" or "Nature" is thought of as a
   // player with a fixed (randomized) policy.
-  bool IsChanceNode() const { return CurrentPlayer() == kChancePlayerId; }
+  virtual bool IsChanceNode() const {
+    return CurrentPlayer() == kChancePlayerId;
+  }
 
   // Is this state a node that requires simultaneous action choices from more
   // than one player? If this is ever true, then the game should be marked as
@@ -302,9 +344,7 @@ class State {
   // including chance) and the `State` objects.
   virtual std::vector<Action> History() const { return history_; }
 
-  virtual std::string HistoryString() const {
-    return absl::StrJoin(history_, " ");
-  }
+  std::string HistoryString() const { return absl::StrJoin(history_, " "); }
 
   // For imperfect information games. Returns an identifier for the current
   // information state for the specified player.
@@ -330,15 +370,13 @@ class State {
   // be.
 
   // There are currently no use-case for calling this function with
-  // 'kChancePlayerId'. Thus, games are expected to raise an error in that case.
-  virtual std::string InformationState(int player) const {
-    SpielFatalError("InformationState is not implemented.");
+  // `kChancePlayerId` or `kTerminalPlayerId`. Thus, games are expected to raise
+  // an error in those cases.
+  virtual std::string InformationStateString(Player player) const {
+    SpielFatalError("InformationStateString is not implemented.");
   }
-
-  // This function should raise an error on Terminal nodes, since the
-  // CurrentPlayer() should be kTerminalPlayerId.
-  virtual std::string InformationState() const {
-    return InformationState(CurrentPlayer());
+  std::string InformationStateString() const {
+    return InformationStateString(CurrentPlayer());
   }
 
   // Vector form, useful for neural-net function approximation approaches.
@@ -348,23 +386,19 @@ class State {
   // This function should resize the supplied vector if required.
 
   // There are currently no use-case for calling this function with
-  // 'kChancePlayerId'. Thus, games are expected to raise an error in that case.
-  virtual void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const {
-    SpielFatalError("InformationStateAsNormalizedVector unimplemented!");
+  // `kChancePlayerId` or `kTerminalPlayerId`. Thus, games are expected to raise
+  // an error in those cases.
+  virtual void InformationStateTensor(Player player,
+                                      std::vector<double>* values) const {
+    SpielFatalError("InformationStateTensor unimplemented!");
   }
-
-  virtual std::vector<double> InformationStateAsNormalizedVector(
-      int player) const {
+  std::vector<double> InformationStateTensor(Player player) const {
     std::vector<double> normalized_info_state;
-    InformationStateAsNormalizedVector(player, &normalized_info_state);
+    InformationStateTensor(player, &normalized_info_state);
     return normalized_info_state;
   }
-
-  virtual std::vector<double> InformationStateAsNormalizedVector() const {
-    std::vector<double> normalized_info_state;
-    InformationStateAsNormalizedVector(CurrentPlayer(), &normalized_info_state);
-    return normalized_info_state;
+  std::vector<double> InformationStateTensor() const {
+    return InformationStateTensor(CurrentPlayer());
   }
 
   // We have functions for observations which are parallel to those for
@@ -379,29 +413,32 @@ class State {
   // Note that neither of these are valid information states, since the same
   // observation may arise from two different observation histories (i.e. they
   // are not perfect recall).
-  virtual std::string Observation(int player) const {
-    SpielFatalError("Observation is not implemented.");
+  virtual std::string ObservationString(Player player) const {
+    SpielFatalError("ObservationString is not implemented.");
+  }
+  std::string ObservationString() const {
+    return ObservationString(CurrentPlayer());
   }
 
-  virtual std::string Observation() const {
-    return Observation(CurrentPlayer());
+  // Returns the view of the game, preferably from `player`'s perspective.
+  virtual void ObservationTensor(Player player,
+                                 std::vector<double>* values) const {
+    SpielFatalError("ObservationTensor unimplemented!");
   }
-
-  virtual void ObservationAsNormalizedVector(
-      int player, std::vector<double>* values) const {
-    SpielFatalError("ObservationAsNormalizedVector unimplemented!");
-  }
-
-  virtual std::vector<double> ObservationAsNormalizedVector(int player) const {
+  std::vector<double> ObservationTensor(Player player) const {
+    // We add this player check, to prevent errors if the game implementation
+    // lacks that check (in particular as this function is the one used in
+    // Python). This can lead to doing this check twice.
+    // TODO(author2): Do we want to prevent executing this twice for games
+    // that implement it?
+    SPIEL_CHECK_GE(player, 0);
+    SPIEL_CHECK_LT(player, num_players_);
     std::vector<double> normalized_observation;
-    ObservationAsNormalizedVector(player, &normalized_observation);
+    ObservationTensor(player, &normalized_observation);
     return normalized_observation;
   }
-
-  virtual std::vector<double> ObservationAsNormalizedVector() const {
-    std::vector<double> normalized_observation;
-    ObservationAsNormalizedVector(CurrentPlayer(), &normalized_observation);
-    return normalized_observation;
+  std::vector<double> ObservationTensor() const {
+    return ObservationTensor(CurrentPlayer());
   }
 
   // Return a copy of this state.
@@ -418,7 +455,7 @@ class State {
   // undo an action. It is only necessary for algorithms that need a fast undo
   // (e.g. minimax search).
   // One must call history_.pop_back() in the implementations.
-  virtual void UndoAction(int player, Action action) {
+  virtual void UndoAction(Player player, Action action) {
     SpielFatalError("UndoAction function is not overridden; not undoing.");
   }
 
@@ -442,6 +479,9 @@ class State {
 
   // Returns the number of players in this game.
   int NumPlayers() const { return num_players_; }
+
+  // Get the game object that generated this state.
+  std::shared_ptr<const Game> GetGame() const { return game_; }
 
   // Get the chance outcomes and their probabilities.
   //
@@ -475,11 +515,50 @@ class State {
   // StateType definition for definitions of the different types.
   StateType GetType() const;
 
- protected:
-  int num_distinct_actions_;
-  int num_players_;
-  std::vector<Action> history_;  // The list of actions leading to the state.
+  // Serializes a state into a string.
+  //
+  // The default implementation writes out a sequence of actions, one per line,
+  // taken from the initial state. Note: this default serialization scheme will
+  // not work games whose chance mode is kSampledStochastic, as there is
+  // currently no general way to set the state's seed to ensure that it samples
+  // the same chance event at chance nodes.
+  //
+  // If overridden, this must be the inverse of Game::DeserializeState.
+  virtual std::string Serialize() const;
 
+  // Resamples a new history from the information state from player_id's view.
+  // This resamples a private for the other players, but holds player_id's
+  // privates constant, and the public information constant.
+  // The privates are sampled uniformly at each chance node. For games with
+  // partially-revealed actions that require some policy, we sample uniformly
+  // from the list of actions that are consistent with what player_id observed.
+  // For rng, we need something that returns a double in [0, 1). This value will
+  // be interpreted as a cumulative distribution function, and will be used to
+  // sample from the legal chance actions. A good choice would be
+  // absl/std::uniform_real_distribution<double>(0., 1.).
+  virtual std::unique_ptr<State> ResampleFromInfostate(
+      int player_id, std::function<double()> rng) const {
+    SpielFatalError("ResampleFromInfostate() not implemented.");
+  }
+
+  // Returns a vector of states & probabilities that are consistent with the
+  // infostate from the view of the current player. By default, this is not
+  // implemented and returns an empty list. This doesn't make any attempt to
+  // correct for the opponent's policy in the probabilities, and so this is
+  // wrong for any state that's not the first non-chance node.
+  virtual std::unique_ptr<
+      std::pair<std::vector<std::unique_ptr<State>>, std::vector<double>>>
+  GetHistoriesConsistentWithInfostate(int player_id) const {
+    return {};
+  }
+
+  virtual std::unique_ptr<
+      std::pair<std::vector<std::unique_ptr<State>>, std::vector<double>>>
+  GetHistoriesConsistentWithInfostate() const {
+    return GetHistoriesConsistentWithInfostate(CurrentPlayer());
+  }
+
+ protected:
   // See ApplyAction.
   virtual void DoApplyAction(Action action_id) {
     SpielFatalError("DoApplyAction is not implemented.");
@@ -488,11 +567,24 @@ class State {
   virtual void DoApplyActions(const std::vector<Action>& actions) {
     SpielFatalError("DoApplyActions is not implemented.");
   }
+
+  // Fields common to every game state.
+  int num_distinct_actions_;
+  int num_players_;
+  std::vector<Action> history_;  // The list of actions leading to the state.
+
+  // A pointer to the game that created this state.
+  std::shared_ptr<const Game> game_;
 };
 
 // A class that refers to a particular game instantiation, for example
 // Breakthrough(8x8).
-class Game {
+//
+// Important note: Game objects cannot be instantiated on the stack or via
+// unique_ptr, because shared pointers to the game object must be sent down to
+// the states that created them. So, they *must* be created via
+// shared_ptr<const Game> or via the LoadGame methods.
+class Game : public std::enable_shared_from_this<Game> {
  public:
   virtual ~Game() = default;
 
@@ -527,7 +619,7 @@ class Game {
   virtual int NumPlayers() const = 0;
 
   // Utility range. These functions define the lower and upper bounds on the
-  // values returned by State::PlayerReturn(int player) over all valid player
+  // values returned by State::PlayerReturn(Player player) over all valid player
   // numbers. This range should be as tight as possible; the intention is to
   // give some information to algorithms that require it, and so their
   // performance may suffer if the range is not tight. Loss/win/draw outcomes
@@ -536,7 +628,7 @@ class Game {
   virtual double MaxUtility() const = 0;
 
   // Return a clone of this game.
-  virtual std::unique_ptr<Game> Clone() const = 0;
+  virtual std::shared_ptr<const Game> Clone() const = 0;
 
   // Static information on the game type. This should match the information
   // provided when registering the game.
@@ -552,16 +644,19 @@ class Game {
   // Describes the structure of the information state representation in a
   // tensor-like format. This is especially useful for experiments involving
   // reinforcement learning and neural networks. Note: the actual information is
-  // returned in a 1-D vector by State::InformationStateAsNormalizedVector -
+  // returned in a 1-D vector by State::InformationStateTensor -
   // see the documentation of that function for details of the data layout.
-  virtual std::vector<int> InformationStateNormalizedVectorShape() const {
-    SpielFatalError("InformationStateNormalizedVectorShape unimplemented.");
+  virtual std::vector<int> InformationStateTensorShape() const {
+    SpielFatalError("InformationStateTensorShape unimplemented.");
+  }
+  virtual TensorLayout InformationStateTensorLayout() const {
+    return TensorLayout::kCHW;
   }
 
   // The size of (flat) vector needed for the information state tensor-like
   // format.
-  int InformationStateNormalizedVectorSize() const {
-    std::vector<int> shape = InformationStateNormalizedVectorShape();
+  int InformationStateTensorSize() const {
+    std::vector<int> shape = InformationStateTensorShape();
     return shape.empty() ? 0
                          : std::accumulate(shape.begin(), shape.end(), 1,
                                            std::multiplies<double>());
@@ -570,31 +665,31 @@ class Game {
   // Describes the structure of the observation representation in a
   // tensor-like format. This is especially useful for experiments involving
   // reinforcement learning and neural networks. Note: the actual observation is
-  // returned in a 1-D vector by State::ObservationAsNormalizedVector -
+  // returned in a 1-D vector by State::ObservationTensor -
   // see the documentation of that function for details of the data layout.
-  virtual std::vector<int> ObservationNormalizedVectorShape() const {
-    SpielFatalError("ObservationNormalizedVectorShape unimplemented.");
+  virtual std::vector<int> ObservationTensorShape() const {
+    SpielFatalError("ObservationTensorShape unimplemented.");
+  }
+  virtual TensorLayout ObservationTensorLayout() const {
+    return TensorLayout::kCHW;
   }
 
   // The size of (flat) vector needed for the observation tensor-like
   // format.
-  int ObservationNormalizedVectorSize() const {
-    std::vector<int> shape = ObservationNormalizedVectorShape();
+  int ObservationTensorSize() const {
+    std::vector<int> shape = ObservationTensorShape();
     return shape.empty() ? 0
                          : std::accumulate(shape.begin(), shape.end(), 1,
                                            std::multiplies<double>());
   }
 
-  // Serializes a state into a string.
-  //
-  // The default implementation writes out a sequence of actions, one per line,
-  // taken from the initial state. Note: this default serialization scheme will
-  // not work games whose chance mode is kSampledStochastic, as there is
-  // currently no general way to set the state's seed to ensure that it samples
-  // the same chance event at chance nodes.
-  //
-  // If overridden, this must be the inverse of Game::DeserializeState.
-  virtual std::string SerializeState(const State& state) const;
+  // Describes the structure of the policy representation in a
+  // tensor-like format. This is especially useful for experiments involving
+  // reinforcement learning and neural networks. Note: the actual policy is
+  // expected to be in the shape of a 1-D vector.
+  virtual std::vector<int> PolicyTensorShape() const {
+    return {NumDistinctActions()};
+  }
 
   // Returns a newly allocated state built from a string. Caller takes ownership
   // of the state.
@@ -622,14 +717,13 @@ class Game {
   Game(GameType game_type, GameParameters game_parameters)
       : game_type_(game_type), game_parameters_(game_parameters) {}
 
-  // Access to game parameters.
+  // Access to game parameters. Returns the value provided by the user. If not:
+  // - Defaults to the value stored as the default in
+  // game_type.parameter_specification if the `default_value` is std::nullopt
+  // - Returns `default_value` if provided.
   template <typename T>
-  T ParameterValue(const std::string& key) const;
-
-  // Access to game parameters; returns the default value if no parameter
-  // was specified, and records the value used.
-  template <typename T>
-  T ParameterValue(const std::string& key, T default_value) const;
+  T ParameterValue(const std::string& key,
+                   std::optional<T> default_value = std::nullopt) const;
 
   // The game type.
   GameType game_type_;
@@ -650,12 +744,12 @@ class Game {
 class GameRegisterer {
  public:
   using CreateFunc =
-      std::function<std::unique_ptr<Game>(const GameParameters& params)>;
+      std::function<std::shared_ptr<const Game>(const GameParameters& params)>;
 
   GameRegisterer(const GameType& game_type, CreateFunc creator);
 
-  static std::unique_ptr<Game> CreateByName(const std::string& short_name,
-                                            const GameParameters& params);
+  static std::shared_ptr<const Game> CreateByName(const std::string& short_name,
+                                                  const GameParameters& params);
 
   static std::vector<std::string> RegisteredNames();
   static std::vector<GameType> RegisteredGames();
@@ -684,22 +778,29 @@ std::vector<GameType> RegisteredGameTypes();
 
 // Returns a new game object from the specified string, which is the short
 // name plus optional parameters, e.g. "go(komi=4.5,board_size=19)"
-std::unique_ptr<Game> LoadGame(const std::string& game_string);
+std::shared_ptr<const Game> LoadGame(const std::string& game_string);
 
 // Returns a new game object with the specified parameters.
-std::unique_ptr<Game> LoadGame(const std::string& short_name,
-                               const GameParameters& params);
+std::shared_ptr<const Game> LoadGame(const std::string& short_name,
+                                     const GameParameters& params);
 
 // Returns a new game object with the specified parameters; reads the name
 // of the game from the 'name' parameter (which is not passed to the game
 // implementation).
-std::unique_ptr<Game> LoadGame(GameParameters params);
+std::shared_ptr<const Game> LoadGame(GameParameters params);
 
-// Used to sample a policy. Can also sample from chance outcomes.
+// Normalize a policy into a proper discrete distribution where the
+// probabilities sum to 1.
+void NormalizePolicy(ActionsAndProbs* policy);
+
+// Used to sample a policy or chance outcome distribution.
 // Probabilities of the actions must sum to 1.
 // The parameter z should be a sample from a uniform distribution on the range
-// [0, 1).
-Action SampleChanceOutcome(const ActionsAndProbs& outcomes, double z);
+// [0, 1). Returns the sampled action and its probability.
+std::pair<Action, double> SampleAction(const ActionsAndProbs& outcomes,
+                                       double z);
+std::pair<Action, double> SampleAction(const ActionsAndProbs& outcomes,
+                                       absl::BitGenRef rng);
 
 // Serialize the game and the state into one self-contained string that can
 // be reloaded via open_spiel::DeserializeGameAndState.
@@ -735,8 +836,13 @@ std::string SerializeGameAndState(const Game& game, const State& state);
 // Note: This serialization scheme will not work for games whose chance mode is
 // kSampledStochastic, as there is currently no general way to set the state's
 // seed.
-std::pair<std::unique_ptr<Game>, std::unique_ptr<State>>
+std::pair<std::shared_ptr<const Game>, std::unique_ptr<State>>
 DeserializeGameAndState(const std::string& serialized_state);
+
+// We alias this here as we can't import state_distribution.h or we'd have a
+// circular dependency.
+using HistoryDistribution =
+    std::pair<std::vector<std::unique_ptr<State>>, std::vector<double>>;
 
 }  // namespace open_spiel
 

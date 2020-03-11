@@ -15,15 +15,31 @@
 #include "open_spiel/games/bridge_uncontested_bidding.h"
 
 #include <cstring>
+#include <memory>
 
 #include "open_spiel/games/bridge/double_dummy_solver/include/dll.h"
+#include "open_spiel/game_parameters.h"
 #include "open_spiel/games/bridge/bridge_scoring.h"
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 
+// For compatibility with versions of the double dummy solver code which
+// don't amend exported names.
+#ifndef DDS_EXTERNAL
+#define DDS_EXTERNAL(x) x
+#endif
+
 namespace open_spiel {
-namespace bridge {
+namespace bridge_uncontested_bidding {
 namespace {
+
+using open_spiel::bridge::kClubs;
+using open_spiel::bridge::kDenominationChar;
+using open_spiel::bridge::kDiamonds;
+using open_spiel::bridge::kHearts;
+using open_spiel::bridge::kNoTrump;
+using open_spiel::bridge::kSpades;
+using open_spiel::bridge::kUndoubled;
 
 constexpr int kNumRedeals = 10;  // how many possible layouts to analyse
 
@@ -37,19 +53,19 @@ const GameType kGameType{
     GameType::RewardModel::kTerminal,
     /*max_num_players=*/kNumPlayers,
     /*min_num_players=*/kNumPlayers,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/true,
-    /*provides_observation=*/false,
-    /*provides_observation_as_normalized_vector=*/false,
+    /*provides_information_state_string=*/true,
+    /*provides_information_state_tensor=*/true,
+    /*provides_observation_string=*/false,
+    /*provides_observation_tensor=*/false,
     /*parameter_specification=*/
     {
-        {"subgame", {GameParameter::Type::kString, false}},
-        {"rng_seed", {GameParameter::Type::kInt, false}},
-        {"relative_scoring", {GameParameter::Type::kBool, false}},
+        {"subgame", GameParameter(static_cast<std::string>(""))},
+        {"rng_seed", GameParameter(0)},
+        {"relative_scoring", GameParameter(false)},
     }};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new UncontestedBiddingGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new UncontestedBiddingGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -80,26 +96,26 @@ int UncontestedBiddingState::CurrentPlayer() const {
   return actions_.size() % 2;
 }
 
-constexpr Suit Denomination(Action bid) {
-  return Suit((bid - 1) % kNumDenominations);
+constexpr bridge::Denomination Denomination(Action bid) {
+  return bridge::Denomination((bid - 1) % kNumDenominations);
 }
-constexpr int Level(Action bid) { return 1 + (bid - 1) / kNumDenominations; }
-constexpr char kRankChar[] = "23456789TJQKA";
-constexpr char kSuitChar[] = "CDHSN";
 
-std::string UncontestedBiddingState::ActionToString(int player,
+constexpr int Level(Action bid) { return 1 + (bid - 1) / kNumDenominations; }
+
+std::string UncontestedBiddingState::ActionToString(Player player,
                                                     Action action_id) const {
   if (player == kChancePlayerId) return "Deal";
   if (action_id == kPass) return "Pass";
-  return absl::StrCat(Level(action_id),
-                      std::string(1, kSuitChar[Denomination(action_id)]));
+  return absl::StrCat(
+      Level(action_id),
+      std::string(1, kDenominationChar[Denomination(action_id)]));
 }
 
 Action ActionFromString(const std::string& str) {
   if (str == "Pass") return kPass;
   SPIEL_CHECK_EQ(str.length(), 2);
   auto level = str[0] - '0';
-  auto denomination = std::string(kSuitChar).find(str[1]);
+  auto denomination = std::string(kDenominationChar).find(str[1]);
   SPIEL_CHECK_NE(denomination, std::string::npos);
   return (level - 1) * kNumDenominations + denomination + 1;
 }
@@ -128,11 +144,11 @@ std::string UncontestedBiddingState::ToString() const {
   if (IsTerminal()) {
     absl::StrAppend(&rv, " Score:", score_);
     for (int i = 0; i < reference_contracts_.size(); ++i) {
-      absl::StrAppend(&rv, " ", reference_contracts_[i].level,
-                      std::string(1, kSuitChar[reference_contracts_[i].trumps]),
-                      "(",
-                      std::string(1, "WE"[reference_contracts_[i].declarer]),
-                      "):", reference_scores_[i]);
+      absl::StrAppend(
+          &rv, " ", reference_contracts_[i].level,
+          std::string(1, kDenominationChar[reference_contracts_[i].trumps]),
+          "(", std::string(1, "WE"[reference_contracts_[i].declarer]),
+          "):", reference_scores_[i]);
     }
   }
   return rv;
@@ -163,14 +179,15 @@ std::string UncontestedBiddingState::AuctionString() const {
   return actions;
 }
 
-std::string UncontestedBiddingState::InformationState(int player) const {
+std::string UncontestedBiddingState::InformationStateString(
+    Player player) const {
   if (!dealt_) return "";
   return absl::StrCat(deal_.HandString(player * 13, (player + 1) * 13), " ",
                       AuctionString());
 }
 
-void UncontestedBiddingState::InformationStateAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+void UncontestedBiddingState::InformationStateTensor(
+    Player player, std::vector<double>* values) const {
   values->resize(kStateSize);
   std::fill(values->begin(), values->end(), 0.);
   auto ptr = values->begin();
@@ -197,7 +214,9 @@ std::unique_ptr<State> UncontestedBiddingState::Clone() const {
 }
 
 std::vector<Action> UncontestedBiddingState::LegalActions() const {
-  if (dealt_) {
+  if (IsTerminal()) {
+    return {};
+  } else if (dealt_) {
     std::vector<Action> actions{kPass};
     const Action prev = actions_.empty() ? kPass : actions_.back();
     for (Action a = prev + 1; a < kNumActions; ++a) actions.push_back(a);
@@ -218,7 +237,7 @@ void UncontestedBiddingState::ScoreDeal() {
   // Determine the final contract and declarer
   const Action bid = actions_[actions_.size() - 2];
   Contract contract{passed_out ? 0 : Level(bid),
-                    passed_out ? kNone : Denomination(bid), kUndoubled};
+                    passed_out ? kNoTrump : Denomination(bid), kUndoubled};
   for (int i = 0; i < actions_.size(); ++i) {
     if (actions_[i] > 0 && Denomination(actions_[i]) == contract.trumps) {
       contract.declarer = i % 2;
@@ -228,7 +247,7 @@ void UncontestedBiddingState::ScoreDeal() {
 
   // Populate East-West cards
   ddTableDeal dd_table_deal{};
-  for (int player = 0; player < kNumPlayers; ++player) {
+  for (Player player = 0; player < kNumPlayers; ++player) {
     for (int i = kNumCardsPerHand * player; i < kNumCardsPerHand * (1 + player);
          ++i) {
       dd_table_deal.cards[player * 2][deal_.Suit(i)] += 1
@@ -257,14 +276,14 @@ void UncontestedBiddingState::ScoreDeal() {
     }
 
     // Analyze the deal.
-    SetMaxThreads(0);
+    DDS_EXTERNAL(SetMaxThreads)(0);
     struct ddTableResults results;
-    const int return_code = CalcDDtable(dd_table_deal, &results);
+    const int return_code = DDS_EXTERNAL(CalcDDtable)(dd_table_deal, &results);
 
     // Check for errors.
     if (return_code != RETURN_NO_FAULT) {
       char error_message[80];
-      ErrorMessage(return_code, error_message);
+      DDS_EXTERNAL(ErrorMessage)(return_code, error_message);
       SpielFatalError(absl::StrCat("double_dummy_solver:", error_message));
     }
 
@@ -310,18 +329,18 @@ UncontestedBiddingGame::UncontestedBiddingGame(const GameParameters& params)
     : Game(kGameType, params),
       forced_actions_{},
       deal_filter_{NoFilter},
-      rng_seed_(ParameterValue<int>("rng_seed", 0)) {
-  std::string subgame = ParameterValue<std::string>("subgame", "");
+      rng_seed_(ParameterValue<int>("rng_seed")) {
+  std::string subgame = ParameterValue<std::string>("subgame");
   if (subgame == "2NT") {
     deal_filter_ = Is2NTDeal;
     forced_actions_ = {k2NT};
-    if (ParameterValue<bool>("relative_scoring", false)) {
+    if (ParameterValue<bool>("relative_scoring")) {
       reference_contracts_ = {
-          {2, kNone, kUndoubled, 0},     {3, kClubs, kUndoubled, 1},
+          {2, kNoTrump, kUndoubled, 0},  {3, kClubs, kUndoubled, 1},
           {3, kDiamonds, kUndoubled, 0}, {3, kDiamonds, kUndoubled, 1},
           {3, kHearts, kUndoubled, 0},   {3, kHearts, kUndoubled, 1},
           {3, kSpades, kUndoubled, 0},   {3, kSpades, kUndoubled, 1},
-          {3, kNone, kUndoubled, 0},     {4, kClubs, kUndoubled, 0},
+          {3, kNoTrump, kUndoubled, 0},  {4, kClubs, kUndoubled, 0},
           {4, kHearts, kUndoubled, 0},   {4, kHearts, kUndoubled, 1},
           {4, kSpades, kUndoubled, 0},   {4, kSpades, kUndoubled, 1},
           {5, kClubs, kUndoubled, 0},    {5, kClubs, kUndoubled, 1},
@@ -330,23 +349,23 @@ UncontestedBiddingGame::UncontestedBiddingGame(const GameParameters& params)
           {6, kDiamonds, kUndoubled, 0}, {6, kDiamonds, kUndoubled, 1},
           {6, kHearts, kUndoubled, 0},   {6, kHearts, kUndoubled, 1},
           {6, kSpades, kUndoubled, 0},   {6, kSpades, kUndoubled, 1},
-          {6, kNone, kUndoubled, 0},     {7, kClubs, kUndoubled, 0},
+          {6, kNoTrump, kUndoubled, 0},  {7, kClubs, kUndoubled, 0},
           {7, kClubs, kUndoubled, 1},    {7, kDiamonds, kUndoubled, 0},
           {7, kDiamonds, kUndoubled, 1}, {7, kHearts, kUndoubled, 0},
           {7, kHearts, kUndoubled, 1},   {7, kSpades, kUndoubled, 0},
-          {7, kSpades, kUndoubled, 1},   {7, kNone, kUndoubled, 0}};
+          {7, kSpades, kUndoubled, 1},   {7, kNoTrump, kUndoubled, 0}};
     }
   } else {
     SPIEL_CHECK_EQ(subgame, "");
-    if (ParameterValue<bool>("relative_scoring", false)) {
+    if (ParameterValue<bool>("relative_scoring")) {
       reference_contracts_ = {
-          {0, kNone, kUndoubled, 0},     {1, kClubs, kUndoubled, 0},
+          {0, kNoTrump, kUndoubled, 0},  {1, kClubs, kUndoubled, 0},
           {1, kClubs, kUndoubled, 1},    {1, kDiamonds, kUndoubled, 0},
           {1, kDiamonds, kUndoubled, 1}, {1, kHearts, kUndoubled, 0},
           {1, kHearts, kUndoubled, 1},   {1, kSpades, kUndoubled, 0},
-          {1, kSpades, kUndoubled, 1},   {1, kNone, kUndoubled, 0},
-          {1, kNone, kUndoubled, 1},     {3, kNone, kUndoubled, 0},
-          {3, kNone, kUndoubled, 1},     {4, kHearts, kUndoubled, 0},
+          {1, kSpades, kUndoubled, 1},   {1, kNoTrump, kUndoubled, 0},
+          {1, kNoTrump, kUndoubled, 1},  {3, kNoTrump, kUndoubled, 0},
+          {3, kNoTrump, kUndoubled, 1},  {4, kHearts, kUndoubled, 0},
           {4, kHearts, kUndoubled, 1},   {4, kSpades, kUndoubled, 0},
           {4, kSpades, kUndoubled, 1},   {5, kClubs, kUndoubled, 0},
           {5, kClubs, kUndoubled, 1},    {5, kDiamonds, kUndoubled, 0},
@@ -354,13 +373,13 @@ UncontestedBiddingGame::UncontestedBiddingGame(const GameParameters& params)
           {6, kClubs, kUndoubled, 1},    {6, kDiamonds, kUndoubled, 0},
           {6, kDiamonds, kUndoubled, 1}, {6, kHearts, kUndoubled, 0},
           {6, kHearts, kUndoubled, 1},   {6, kSpades, kUndoubled, 0},
-          {6, kSpades, kUndoubled, 1},   {6, kNone, kUndoubled, 0},
-          {6, kNone, kUndoubled, 1},     {7, kClubs, kUndoubled, 0},
+          {6, kSpades, kUndoubled, 1},   {6, kNoTrump, kUndoubled, 0},
+          {6, kNoTrump, kUndoubled, 1},  {7, kClubs, kUndoubled, 0},
           {7, kClubs, kUndoubled, 1},    {7, kDiamonds, kUndoubled, 0},
           {7, kDiamonds, kUndoubled, 1}, {7, kHearts, kUndoubled, 0},
           {7, kHearts, kUndoubled, 1},   {7, kSpades, kUndoubled, 0},
-          {7, kSpades, kUndoubled, 1},   {7, kNone, kUndoubled, 0},
-          {7, kNone, kUndoubled, 1}};
+          {7, kSpades, kUndoubled, 1},   {7, kNoTrump, kUndoubled, 0},
+          {7, kNoTrump, kUndoubled, 1}};
     }
   }
 }
@@ -374,7 +393,7 @@ std::unique_ptr<State> UncontestedBiddingGame::DeserializeState(
                  kNumPlayers * (kNumCardsPerHand + kNumSuits) - 1);
   std::array<int, kNumCards> cards{};
   std::array<int, kNumCards> cards_dealt{};
-  for (int player = 0; player < kNumPlayers; ++player) {
+  for (Player player = 0; player < kNumPlayers; ++player) {
     int suit = 0;
     int start = player * (kNumCardsPerHand + kNumSuits);
     for (int i = 0; i < kNumCardsPerHand; ++i) {
@@ -411,9 +430,10 @@ std::unique_ptr<State> UncontestedBiddingGame::DeserializeState(
     SPIEL_CHECK_EQ(actions[i], forced_actions_[i]);
   }
 
-  return std::unique_ptr<State>(new UncontestedBiddingState(
-      reference_contracts_, Deal(cards), actions, ++rng_seed_));
+  return std::unique_ptr<State>(
+      new UncontestedBiddingState(shared_from_this(), reference_contracts_,
+                                  Deal(cards), actions, ++rng_seed_));
 }
 
-}  // namespace bridge
+}  // namespace bridge_uncontested_bidding
 }  // namespace open_spiel

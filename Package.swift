@@ -25,8 +25,14 @@ let package = Package(
       name: "OpenSpiel",
       targets: ["OpenSpiel"]),
     .executable(
+      name: "GridMazeExample",
+      targets: ["GridMazeExample"]),
+    .executable(
       name: "KuhnPokerExample",
       targets: ["KuhnPokerExample"]),
+    .executable(
+      name: "TexasHoldemBenchmark",
+      targets: ["TexasHoldemBenchmark"]),
   ],
   targets: [
     .target(
@@ -38,8 +44,16 @@ let package = Package(
       dependencies: ["OpenSpiel"],
       path: "swift/Tests/OpenSpielTests"),
     .target(
+      name: "GridMazeExample",
+      dependencies: ["OpenSpiel"],
+      path: "swift/Examples/GridMaze"),
+    .target(
       name: "KuhnPokerExample",
       dependencies: ["OpenSpiel"],
       path: "swift/Examples/KuhnPoker"),
+    .target(
+      name: "TexasHoldemBenchmark",
+      dependencies: ["OpenSpiel"],
+      path: "swift/Examples/TexasHoldemBenchmark"),
   ]
 )

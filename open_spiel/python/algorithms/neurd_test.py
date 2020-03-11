@@ -18,12 +18,12 @@ from __future__ import print_function
 
 from absl.testing import absltest
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python.algorithms import neurd
 import pyspiel
 
-tf.compat.v1.enable_eager_execution()
+tf.enable_eager_execution()
 
 _GAME = pyspiel.load_game('kuhn_poker')
 
@@ -60,7 +60,7 @@ class NeurdTest(tf.test.TestCase):
           data=data,
           batch_size=12,
           step_size=10.0,
-          autoencoder_loss=tf.compat.v1.losses.huber_loss)
+          autoencoder_loss=tf.losses.huber_loss)
 
     for _ in range(num_iterations):
       solver.evaluate_and_update_policy(_train)

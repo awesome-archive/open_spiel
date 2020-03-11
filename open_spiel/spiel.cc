@@ -14,16 +14,19 @@
 
 #include "open_spiel/spiel.h"
 
-#include <cstdlib>
-#include <iomanip>
+#include <algorithm>
+#include <functional>
 #include <iostream>
-#include <list>
+#include <map>
 #include <memory>
-#include <ostream>
+#include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_join.h"
+#include "open_spiel/abseil-cpp/absl/strings/str_split.h"
 #include "open_spiel/game_parameters.h"
 #include "open_spiel/spiel_utils.h"
 
@@ -35,24 +38,42 @@ constexpr const char* kSerializeMetaSectionHeader = "[Meta]";
 constexpr const char* kSerializeGameSectionHeader = "[Game]";
 constexpr const char* kSerializeStateSectionHeader = "[State]";
 
+// Returns the available parameter keys, to be used as a utility function.
+std::string ListValidParameters(
+    const std::map<std::string, GameParameter>& param_spec) {
+  std::vector<std::string> available_keys;
+  available_keys.reserve(param_spec.size());
+  for (const auto& item : param_spec) {
+    available_keys.push_back(item.first);
+  }
+  std::sort(available_keys.begin(), available_keys.end());
+  return absl::StrJoin(available_keys, ", ");
+}
+
 // Check on supplied parameters for game creation.
 // Issues a SpielFatalError if any are missing, of the wrong type, or
 // unexpectedly present.
-void ValidateParams(
-    const GameParameters& params,
-    const std::map<std::string, GameType::ParameterSpec>& param_spec) {
+void ValidateParams(const GameParameters& params,
+                    const std::map<std::string, GameParameter>& param_spec) {
   // Check all supplied parameters are supported and of the right type.
   for (const auto& param : params) {
     const auto it = param_spec.find(param.first);
-    if (it == param_spec.end())
-      SpielFatalError(absl::StrCat("Unknown parameter ", param.first));
-    if (it->second.type != param.second.type()) {
-      SpielFatalError(absl::StrCat("Wrong type for parameter ", param.first));
+    if (it == param_spec.end()) {
+      SpielFatalError(absl::StrCat(
+          "Unknown parameter ", param.first,
+          ". Available parameters are: ", ListValidParameters(param_spec)));
+    }
+    if (it->second.type() != param.second.type()) {
+      SpielFatalError(absl::StrCat(
+          "Wrong type for parameter ", param.first,
+          ". Expected type: ", GameParameterTypeToString(it->second.type()),
+          ", got ", GameParameterTypeToString(param.second.type()), " with ",
+          param.second.ToString()));
     }
   }
   // Check we aren't missing any mandatory parameters.
   for (const auto& param : param_spec) {
-    if (param.second.is_mandatory && !params.count(param.first)) {
+    if (param.second.is_mandatory() && !params.count(param.first)) {
       SpielFatalError(absl::StrCat("Missing parameter ", param.first));
     }
   }
@@ -90,7 +111,7 @@ StateType State::GetType() const {
 
 bool GameType::ContainsRequiredParameters() const {
   for (const auto& key_val : parameter_specification) {
-    if (key_val.second.is_mandatory) {
+    if (key_val.second.is_mandatory()) {
       return true;
     }
   }
@@ -101,7 +122,7 @@ GameRegisterer::GameRegisterer(const GameType& game_type, CreateFunc creator) {
   RegisterGame(game_type, creator);
 }
 
-std::unique_ptr<Game> GameRegisterer::CreateByName(
+std::shared_ptr<const Game> GameRegisterer::CreateByName(
     const std::string& short_name, const GameParameters& params) {
   auto iter = factories().find(short_name);
   if (iter == factories().end()) {
@@ -152,13 +173,13 @@ std::vector<GameType> RegisteredGameTypes() {
   return GameRegisterer::RegisteredGames();
 }
 
-std::unique_ptr<Game> LoadGame(const std::string& game_string) {
+std::shared_ptr<const Game> LoadGame(const std::string& game_string) {
   return LoadGame(GameParametersFromString(game_string));
 }
 
-std::unique_ptr<Game> LoadGame(const std::string& short_name,
-                               const GameParameters& params) {
-  std::unique_ptr<Game> result =
+std::shared_ptr<const Game> LoadGame(const std::string& short_name,
+                                     const GameParameters& params) {
+  std::shared_ptr<const Game> result =
       GameRegisterer::CreateByName(short_name, params);
   if (result == nullptr) {
     SpielFatalError(absl::StrCat("Unable to create game: ", short_name));
@@ -166,7 +187,7 @@ std::unique_ptr<Game> LoadGame(const std::string& short_name,
   return result;
 }
 
-std::unique_ptr<Game> LoadGame(GameParameters params) {
+std::shared_ptr<const Game> LoadGame(GameParameters params) {
   auto it = params.find("name");
   if (it == params.end()) {
     SpielFatalError(absl::StrCat("No 'name' parameter in params: ",
@@ -174,45 +195,58 @@ std::unique_ptr<Game> LoadGame(GameParameters params) {
   }
   std::string name = it->second.string_value();
   params.erase(it);
-  std::unique_ptr<Game> result = GameRegisterer::CreateByName(name, params);
+  std::shared_ptr<const Game> result =
+      GameRegisterer::CreateByName(name, params);
   if (result == nullptr) {
     SpielFatalError(absl::StrCat("Unable to create game: ", name));
   }
   return result;
 }
 
-template <>
-int Game::ParameterValue<int>(const std::string& key) const {
-  return game_parameters_.at(key).int_value();
-}
-
-template <>
-double Game::ParameterValue<double>(const std::string& key) const {
-  return game_parameters_.at(key).double_value();
-}
-
-template <>
-std::string Game::ParameterValue<std::string>(const std::string& key) const {
-  return game_parameters_.at(key).string_value();
-}
-
-template <>
-bool Game::ParameterValue<bool>(const std::string& key) const {
-  return game_parameters_.at(key).bool_value();
-}
+State::State(std::shared_ptr<const Game> game)
+    : num_distinct_actions_(game->NumDistinctActions()),
+      num_players_(game->NumPlayers()),
+      game_(game) {}
 
 template <>
 GameParameters Game::ParameterValue<GameParameters>(
-    const std::string& key) const {
-  return game_parameters_.at(key).game_value();
+    const std::string& key, std::optional<GameParameters> default_value) const {
+  auto iter = game_parameters_.find(key);
+  if (iter != game_parameters_.end()) {
+    return iter->second.game_value();
+  }
+
+  if (default_value == std::nullopt) {
+    std::vector<std::string> available_keys;
+    for (auto const& element : game_parameters_) {
+      available_keys.push_back(element.first);
+    }
+    SpielFatalError(absl::StrCat("The parameter for ", key,
+                                 " is missing. Available keys are: ",
+                                 absl::StrJoin(available_keys, " ")));
+  }
+  return default_value.value();
 }
 
 template <>
-int Game::ParameterValue<int>(const std::string& key, int default_value) const {
+int Game::ParameterValue<int>(const std::string& key,
+                              std::optional<int> default_value) const {
   auto iter = game_parameters_.find(key);
   if (iter == game_parameters_.end()) {
-    defaulted_parameters_[key] = GameParameter(default_value);
-    return default_value;
+    GameParameter default_game_parameter;
+    if (default_value != std::nullopt) {
+      default_game_parameter = GameParameter(default_value.value());
+    } else {
+      auto default_iter = game_type_.parameter_specification.find(key);
+      if (default_iter == game_type_.parameter_specification.end()) {
+        SpielFatalError(absl::StrCat("No default parameter for ", key,
+                                     " and it was not provided as an argument. "
+                                     "It is likely it should be mandatory."));
+      }
+      default_game_parameter = default_iter->second;
+    }
+    defaulted_parameters_[key] = default_game_parameter;
+    return default_game_parameter.int_value();
   } else {
     return iter->second.int_value();
   }
@@ -220,23 +254,47 @@ int Game::ParameterValue<int>(const std::string& key, int default_value) const {
 
 template <>
 double Game::ParameterValue<double>(const std::string& key,
-                                    double default_value) const {
+                                    std::optional<double> default_value) const {
   auto iter = game_parameters_.find(key);
   if (iter == game_parameters_.end()) {
-    defaulted_parameters_[key] = GameParameter(default_value);
-    return default_value;
+    GameParameter default_game_parameter;
+    if (default_value != std::nullopt) {
+      default_game_parameter = GameParameter(default_value.value());
+    } else {
+      auto default_iter = game_type_.parameter_specification.find(key);
+      if (default_iter == game_type_.parameter_specification.end()) {
+        SpielFatalError(absl::StrCat("No default parameter for ", key,
+                                     " and it was not provided as an argument. "
+                                     "It is likely it should be mandatory."));
+      }
+      default_game_parameter = default_iter->second;
+    }
+    defaulted_parameters_[key] = default_game_parameter;
+    return default_game_parameter.double_value();
   } else {
     return iter->second.double_value();
   }
 }
 
 template <>
-std::string Game::ParameterValue<std::string>(const std::string& key,
-                                              std::string default_value) const {
+std::string Game::ParameterValue<std::string>(
+    const std::string& key, std::optional<std::string> default_value) const {
   auto iter = game_parameters_.find(key);
   if (iter == game_parameters_.end()) {
-    defaulted_parameters_[key] = GameParameter(default_value);
-    return default_value;
+    GameParameter default_game_parameter;
+    if (default_value != std::nullopt) {
+      default_game_parameter = GameParameter(default_value.value());
+    } else {
+      auto default_iter = game_type_.parameter_specification.find(key);
+      if (default_iter == game_type_.parameter_specification.end()) {
+        SpielFatalError(absl::StrCat("No default parameter for ", key,
+                                     " and it was not provided as an argument. "
+                                     "It is likely it should be mandatory."));
+      }
+      default_game_parameter = default_iter->second;
+    }
+    defaulted_parameters_[key] = default_game_parameter;
+    return default_game_parameter.string_value();
   } else {
     return iter->second.string_value();
   }
@@ -244,20 +302,49 @@ std::string Game::ParameterValue<std::string>(const std::string& key,
 
 template <>
 bool Game::ParameterValue<bool>(const std::string& key,
-                                bool default_value) const {
+                                std::optional<bool> default_value) const {
   auto iter = game_parameters_.find(key);
   if (iter == game_parameters_.end()) {
-    defaulted_parameters_[key] = GameParameter(default_value);
-    return default_value;
+    GameParameter default_game_parameter;
+    if (default_value != std::nullopt) {
+      default_game_parameter = GameParameter(default_value.value());
+    } else {
+      auto default_iter = game_type_.parameter_specification.find(key);
+      if (default_iter == game_type_.parameter_specification.end()) {
+        SpielFatalError(absl::StrCat("No default parameter for ", key,
+                                     " and it was not provided as an argument. "
+                                     "It is likely it should be mandatory."));
+      }
+      default_game_parameter = default_iter->second;
+    }
+    defaulted_parameters_[key] = default_game_parameter;
+    return default_game_parameter.bool_value();
   } else {
     return iter->second.bool_value();
   }
 }
 
-Action SampleChanceOutcome(const ActionsAndProbs& outcomes, double z) {
+void NormalizePolicy(ActionsAndProbs* policy) {
   double sum = 0;
+  for (const std::pair<Action, double>& outcome : *policy) {
+    sum += outcome.second;
+  }
+  for (std::pair<Action, double>& outcome : *policy) {
+    outcome.second /= sum;
+  }
+}
+
+std::pair<Action, double> SampleAction(const ActionsAndProbs& outcomes,
+                                       absl::BitGenRef rng) {
+  return SampleAction(outcomes, absl::Uniform(rng, 0.0, 1.0));
+}
+std::pair<Action, double> SampleAction(const ActionsAndProbs& outcomes,
+                                       double z) {
+  SPIEL_CHECK_GE(z, 0);
+  SPIEL_CHECK_LT(z, 1);
 
   // First do a check that this is indeed a proper discrete distribution.
+  double sum = 0;
   for (const std::pair<Action, double>& outcome : outcomes) {
     double prob = outcome.second;
     SPIEL_CHECK_GE(prob, 0);
@@ -268,32 +355,40 @@ Action SampleChanceOutcome(const ActionsAndProbs& outcomes, double z) {
 
   // Now sample an outcome.
   sum = 0;
-
-  for (const auto& outcome : outcomes) {
+  for (const std::pair<Action, double>& outcome : outcomes) {
     double prob = outcome.second;
     if (sum <= z && z < (sum + prob)) {
-      return outcome.first;
+      return outcome;
     }
     sum += prob;
   }
 
   // If we get here, something has gone wrong
   std::cerr << "Chance sampling failed; outcomes:" << std::endl;
-  for (const auto& outcome : outcomes) {
+  for (const std::pair<Action, double>& outcome : outcomes) {
     std::cerr << outcome.first << "  " << outcome.second << std::endl;
   }
   SpielFatalError(
       absl::StrCat("Internal error: failed to sample an outcome; z=", z));
 }
 
-std::string Game::SerializeState(const State& state) const {
+std::string State::Serialize() const {
   // This simple serialization doesn't work for games with sampled chance
   // nodes, since the history doesn't give us enough information to reconstruct
   // the state. If you wish to serialize states in such games, you must
   // implement custom serialization and deserialization for the state.
-  SPIEL_CHECK_NE(game_type_.chance_mode,
+  SPIEL_CHECK_NE(game_->GetType().chance_mode,
                  GameType::ChanceMode::kSampledStochastic);
-  return absl::StrCat(absl::StrJoin(state.History(), "\n"), "\n");
+  return absl::StrCat(absl::StrJoin(History(), "\n"), "\n");
+}
+
+Action State::StringToAction(Player player,
+                             const std::string& action_str) const {
+  for (const Action action : LegalActions()) {
+    if (action_str == ActionToString(player, action)) return action;
+  }
+  SpielFatalError(
+      absl::StrCat("Couldn't find an action matching ", action_str));
 }
 
 std::unique_ptr<State> Game::DeserializeState(const std::string& str) const {
@@ -345,12 +440,12 @@ std::string SerializeGameAndState(const Game& game, const State& state) {
 
   // State section.
   absl::StrAppend(&str, kSerializeStateSectionHeader, "\n");
-  absl::StrAppend(&str, game.SerializeState(state), "\n");
+  absl::StrAppend(&str, state.Serialize(), "\n");
 
   return str;
 }
 
-std::pair<std::unique_ptr<Game>, std::unique_ptr<State>>
+std::pair<std::shared_ptr<const Game>, std::unique_ptr<State>>
 DeserializeGameAndState(const std::string& serialized_state) {
   std::vector<std::string> lines = absl::StrSplit(serialized_state, '\n');
 
@@ -360,7 +455,7 @@ DeserializeGameAndState(const std::string& serialized_state) {
 
   std::string game_string = "";
   std::string state_string = "";
-  std::unique_ptr<Game> game = nullptr;
+  std::shared_ptr<const Game> game = nullptr;
   std::unique_ptr<State> state = nullptr;
 
   for (int i = 0; i < lines.size(); ++i) {
@@ -395,8 +490,8 @@ DeserializeGameAndState(const std::string& serialized_state) {
   game = LoadGame(section_strings[kGame]);
   state = game->DeserializeState(section_strings[kState]);
 
-  return std::pair<std::unique_ptr<Game>, std::unique_ptr<State>>(
-      std::move(game), std::move(state));
+  return std::pair<std::shared_ptr<const Game>, std::unique_ptr<State>>(
+      game, std::move(state));
 }
 
 std::ostream& operator<<(std::ostream& stream, GameType::Dynamics value) {

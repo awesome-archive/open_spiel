@@ -14,10 +14,12 @@
 
 #include "open_spiel/algorithms/external_sampling_mccfr.h"
 
+#include <memory>
 #include <numeric>
 #include <random>
 
 #include "open_spiel/algorithms/cfr.h"
+#include "open_spiel/policy.h"
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 
@@ -27,17 +29,30 @@ namespace algorithms {
 ExternalSamplingMCCFRSolver::ExternalSamplingMCCFRSolver(const Game& game,
                                                          int seed,
                                                          AverageType avg_type)
+    : ExternalSamplingMCCFRSolver(
+          game, std::make_shared<TabularPolicy>(GetUniformPolicy(game)), seed,
+          avg_type) {}
+
+ExternalSamplingMCCFRSolver::ExternalSamplingMCCFRSolver(
+    const Game& game, std::shared_ptr<Policy> default_policy, int seed,
+    AverageType avg_type)
     : game_(game.Clone()),
       rng_(new std::mt19937(seed)),
       avg_type_(avg_type),
       dist_(0.0, 1.0),
-      uniform_policy_(std::shared_ptr<TabularPolicy>(
-          new TabularPolicy(GetUniformPolicy(game)))) {}
+      default_policy_(default_policy) {
+  if (game_->GetType().dynamics != GameType::Dynamics::kSequential) {
+    SpielFatalError(
+        "MCCFR requires sequential games. If you're trying to run it "
+        "on a simultaneous (or normal-form) game, please first transform it "
+        "using turn_based_simultaneous_game.");
+  }
+}
 
 void ExternalSamplingMCCFRSolver::RunIteration() { RunIteration(rng_.get()); }
 
 void ExternalSamplingMCCFRSolver::RunIteration(std::mt19937* rng) {
-  for (int p = 0; p < game_->NumPlayers(); ++p) {
+  for (auto p = Player{0}; p < game_->NumPlayers(); ++p) {
     UpdateRegrets(*game_->NewInitialState(), p, rng);
   }
 
@@ -48,12 +63,12 @@ void ExternalSamplingMCCFRSolver::RunIteration(std::mt19937* rng) {
 }
 
 double ExternalSamplingMCCFRSolver::UpdateRegrets(const State& state,
-                                                  int player,
+                                                  Player player,
                                                   std::mt19937* rng) {
   if (state.IsTerminal()) {
     return state.PlayerReturn(player);
   } else if (state.IsChanceNode()) {
-    Action action = SampleChanceOutcome(state.ChanceOutcomes(), dist_(*rng));
+    Action action = SampleAction(state.ChanceOutcomes(), dist_(*rng)).first;
     return UpdateRegrets(*state.Child(action), player, rng);
   } else if (state.IsSimultaneousNode()) {
     SpielFatalError(
@@ -61,8 +76,8 @@ double ExternalSamplingMCCFRSolver::UpdateRegrets(const State& state,
         "TurnBasedSimultaneousGame to convert the game first.");
   }
 
-  int cur_player = state.CurrentPlayer();
-  std::string is_key = state.InformationState(cur_player);
+  Player cur_player = state.CurrentPlayer();
+  std::string is_key = state.InformationStateString(cur_player);
   std::vector<Action> legal_actions = state.LegalActions();
 
   // The insert here only inserts the default value if the key is not found,
@@ -85,7 +100,7 @@ double ExternalSamplingMCCFRSolver::UpdateRegrets(const State& state,
     for (int aidx = 0; aidx < legal_actions.size(); ++aidx) {
       child_values[aidx] =
           UpdateRegrets(*state.Child(legal_actions[aidx]), player, rng);
-      value += info_state_copy.cached_policy[aidx] * child_values[aidx];
+      value += info_state_copy.current_policy[aidx] * child_values[aidx];
     }
   }
 
@@ -99,13 +114,14 @@ double ExternalSamplingMCCFRSolver::UpdateRegrets(const State& state,
     }
   }
 
-  // Standard average does averaging on the opponent node. To do this in a game
+  // Simple average does averaging on the opponent node. To do this in a game
   // with more than two players, we only update the player + 1 mod num_players,
   // which reduces to the standard rule in 2 players.
-  if (avg_type_ == AverageType::kStandard &&
+  if (avg_type_ == AverageType::kSimple &&
       cur_player == ((player + 1) % game_->NumPlayers())) {
     for (int aidx = 0; aidx < legal_actions.size(); ++aidx) {
-      info_state.cumulative_policy[aidx] += info_state_copy.cached_policy[aidx];
+      info_state.cumulative_policy[aidx] +=
+          info_state_copy.current_policy[aidx];
     }
   }
 
@@ -131,8 +147,8 @@ void ExternalSamplingMCCFRSolver::FullUpdateAverage(
   double sum = std::accumulate(reach_probs.begin(), reach_probs.end(), 0.0);
   if (sum == 0.0) return;
 
-  int cur_player = state.CurrentPlayer();
-  std::string is_key = state.InformationState(cur_player);
+  Player cur_player = state.CurrentPlayer();
+  std::string is_key = state.InformationStateString(cur_player);
   std::vector<Action> legal_actions = state.LegalActions();
 
   // The insert here only inserts the default value if the key is not found,
@@ -145,7 +161,7 @@ void ExternalSamplingMCCFRSolver::FullUpdateAverage(
 
   for (int aidx = 0; aidx < legal_actions.size(); ++aidx) {
     std::vector<double> new_reach_probs = reach_probs;
-    new_reach_probs[cur_player] *= info_state_copy.cached_policy[aidx];
+    new_reach_probs[cur_player] *= info_state_copy.current_policy[aidx];
     FullUpdateAverage(*state.Child(legal_actions[aidx]), new_reach_probs);
   }
 
@@ -153,7 +169,7 @@ void ExternalSamplingMCCFRSolver::FullUpdateAverage(
   CFRInfoStateValues& info_state = info_states_[is_key];
   for (int aidx = 0; aidx < legal_actions.size(); ++aidx) {
     info_state.cumulative_policy[aidx] +=
-        (reach_probs[cur_player] * info_state_copy.cached_policy[aidx]);
+        (reach_probs[cur_player] * info_state_copy.current_policy[aidx]);
   }
 }
 

@@ -16,20 +16,28 @@
 #define THIRD_PARTY_OPEN_SPIEL_SPIEL_UTILS_H_
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <locale>
+#include <optional>
+#include <random>
 #include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "open_spiel/abseil-cpp/absl/random/uniform_real_distribution.h"
 #include "open_spiel/abseil-cpp/absl/strings/ascii.h"
 #include "open_spiel/abseil-cpp/absl/strings/match.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_join.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_split.h"
+#include "open_spiel/abseil-cpp/absl/time/clock.h"
+#include "open_spiel/abseil-cpp/absl/time/time.h"
 
 // Code that is not part of the API, but is widely useful in implementations
 
@@ -49,10 +57,20 @@ std::ostream& operator<<(std::ostream& stream, const std::vector<T>& v) {
   stream << "]";
   return stream;
 }
+template <typename T, std::size_t N>
+std::ostream& operator<<(std::ostream& stream, const std::array<T, N>& v) {
+  stream << "[";
+  for (const auto& element : v) {
+    stream << element << " ";
+  }
+  stream << "]";
+  return stream;
+}
 
+namespace internal {
 // SpielStrOut(out, a, b, c) is equivalent to:
 //    out << a << b << c;
-// It is useful mostly to enable absl::StrAppend and absl::StrCat, below.
+// It is used to enable SpielStrCat, below.
 template <typename Out, typename T>
 void SpielStrOut(Out& out, const T& arg) {
   out << arg;
@@ -64,14 +82,14 @@ void SpielStrOut(Out& out, const T& arg1, Args&&... args) {
   SpielStrOut(out, std::forward<Args>(args)...);
 }
 
-namespace internal {
 // Builds a string from pieces:
 //
 //  SpielStrCat(1, " + ", 1, " = ", 2) --> "1 + 1 = 2"
 //
 // Converting the parameters to strings is done using the stream operator<<.
 // This is only kept around to be used in the SPIEL_CHECK_* macros and should
-// not be called by any code outside of this file.
+// not be called by any code outside of this file. Prefer absl::StrCat instead.
+// It is kept here due to support for more types, including char.
 template <typename... Args>
 std::string SpielStrCat(Args&&... args) {
   std::ostringstream out;
@@ -81,25 +99,12 @@ std::string SpielStrCat(Args&&... args) {
 
 }  // namespace internal
 
+using Player = int;
 using Action = int64_t;
 
 // Floating point comparisons use this as a multiplier on the larger of the two
 // numbers as the threshold.
-constexpr float FloatingPointDefaultThresholdRatio() { return 1e-5; }
-
-// Useful functions for parsing the command-line for arguments of the form
-// --name=value.
-
-// Returns (true, value) if command-line argument is found, or (false, "")
-// otherwise.
-std::pair<bool, std::string> ParseCmdLineArg(int argc, char** argv,
-                                             const std::string& name);
-
-// Returns the value of the command-line argument if found, otherwise returns
-// the default value.
-std::string ParseCmdLineArgDefault(int argc, char** argv,
-                                   const std::string& name,
-                                   const std::string& default_value);
+inline constexpr float FloatingPointDefaultThresholdRatio() { return 1e-5; }
 
 // Helpers used to convert actions represented as integers in mixed bases.
 // E.g. RankActionMixedBase({2, 3, 6}, {1, 1, 1}) = 1*18 + 1*6 + 1 = 25,
@@ -113,10 +118,16 @@ void UnrankActionMixedBase(Action action, const std::vector<int>& bases,
                            std::vector<int>* digits);
 
 // Helper function to determine the next player in a round robin.
-int NextPlayerRoundRobin(int player, int nplayers);
+int NextPlayerRoundRobin(Player player, int nplayers);
 
 // Helper function to determine the previous player in a round robin.
-int PreviousPlayerRoundRobin(int player, int nplayers);
+int PreviousPlayerRoundRobin(Player player, int nplayers);
+
+// Finds a file by looking up a number of directories. For example: if levels is
+// 3 and filename is my.txt, it will look for ./my.txt, ../my.txt, ../../my.txt,
+// and ../../../my.txt, return the first file found or std::nullopt if not
+// found.
+std::optional<std::string> FindFile(const std::string& filename, int levels);
 
 // Returns whether the absolute difference between floating point values a and
 // b is less than or equal to FloatingPointThresholdRatio() * max(|a|, |b|).
@@ -177,14 +188,20 @@ bool Near(T a, T b, T epsilon) {
 #define SPIEL_CHECK_LT(x, y) SPIEL_CHECK_OP(x, <, y)
 #define SPIEL_CHECK_EQ(x, y) SPIEL_CHECK_OP(x, ==, y)
 #define SPIEL_CHECK_NE(x, y) SPIEL_CHECK_OP(x, !=, y)
+#define SPIEL_CHECK_PROB(x) \
+  SPIEL_CHECK_GE(x, 0);     \
+  SPIEL_CHECK_LE(x, 1);     \
+  SPIEL_CHECK_FALSE(std::isnan(x) || std::isinf(x))
 
 // Checks that x and y are equal to the default dynamic threshold proportional
 // to max(|x|, |y|).
-#define SPIEL_CHECK_FLOAT_EQ(x, y) SPIEL_CHECK_FN2(x, y, Near)
+#define SPIEL_CHECK_FLOAT_EQ(x, y) \
+  SPIEL_CHECK_FN2(static_cast<float>(x), static_cast<float>(y), Near)
 
 // Checks that x and y are epsilon apart or closer.
-#define SPIEL_CHECK_FLOAT_NEAR(x, y, epsilon) \
-  SPIEL_CHECK_FN3(x, y, epsilon, Near)
+#define SPIEL_CHECK_FLOAT_NEAR(x, y, epsilon)                   \
+  SPIEL_CHECK_FN3(static_cast<float>(x), static_cast<float>(y), \
+                  static_cast<float>(epsilon), Near)
 
 #define SPIEL_CHECK_TRUE(x)                                      \
   while (!(x))                                                   \
@@ -210,6 +227,35 @@ bool Near(T a, T b, T epsilon) {
 // Specify a new error handler.
 using ErrorHandler = void (*)(const std::string&);
 void SetErrorHandler(ErrorHandler error_handler);
+
+// A ProbabilitySampler that samples uniformly from a distribution.
+class UniformProbabilitySampler {
+ public:
+  UniformProbabilitySampler(int seed, double min = 0., double max = 1.)
+      : seed_(seed), rng_(seed_), dist_(min, max), min_(min), max_(max) {}
+
+  UniformProbabilitySampler(double min = 0., double max = 1.)
+      : rng_(seed_), dist_(min, max), min_(min), max_(max) {}
+
+  // When copying, we reinitialize the sampler to have the initial seed.
+  UniformProbabilitySampler(const UniformProbabilitySampler& other)
+      : seed_(other.seed_),
+        rng_(other.seed_),
+        dist_(other.min_, other.max_),
+        min_(other.min_),
+        max_(other.max_) {}
+
+  double operator()() { return dist_(rng_); }
+
+ private:
+  // Set the seed as the number of nanoseconds
+  const int seed_ = absl::ToInt64Nanoseconds(absl::Now() - absl::UnixEpoch());
+  std::mt19937 rng_;
+  absl::uniform_real_distribution<double> dist_;
+
+  const double min_;
+  const double max_;
+};
 
 }  // namespace open_spiel
 

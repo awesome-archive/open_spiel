@@ -17,12 +17,50 @@ around two major important design criteria:
     justification, we tend to avoid introducing dependencies to keep things easy
     to install and more portable.
 
+# Support expectations
+
+We, the OpenSpiel authors, definitely engage in supporting the community. As it
+can be time-consuming, we try to find a good balance between ensuring we are
+responsive and being able to continue to do our day-to-day work and research.
+
+Generally speaking, if you are willing to get a specific feature implemented,
+the most effective way is to implement it and send a Pull Request. For large
+changes, or ones involving design decisions, open a bug to check the idea is ok
+first.
+
+The higher the quality, the easier it will be to be accepted. For instance,
+following the
+[C++ Google style guide](https://google.github.io/styleguide/cppguide.html) and
+[Python Google style guide](http://google.github.io/styleguide/pyguide.html)
+will help with the integration.
+
+As examples, MacOS support, Window support, example improvements, various
+bug-fixes or new games has been straightforward to be included and we are very
+thankful to everyone who helped.
+
+## Bugs
+
+We aim to answer bugs at a reasonable pace, several times a week. However, for
+bugs involving large changes (e.g. adding new games, adding public state
+supports) we cannot commit to implementing it and encourage everyone to
+contribute directly.
+
+## Pull requests
+
+You can expect us to answer/comment back and you will know from the comment if
+it will be merged as is or if it will need additional work.
+
+For pull requests, they are merged as batches to be more efficient, at least
+every two weeks (for bug fixes, it will likely be faster to be integrated). So
+you may need to wait a little after it has been approved to actually see it
+merged.
+
 # Roadmap and Call for Contributions
 
 Contributions to this project must be accompanied by a Contributor License
 Agreement (CLA). See
-[CONTRIBUTING.md](https://github.com/deepmind/open_spiel/CONTRIBUTING.md) for
-the details.
+[CONTRIBUTING.md](https://github.com/deepmind/open_spiel/blob/master/CONTRIBUTING.md)
+for the details.
 
 Here, we outline our intentions for the future, giving an overview of what we
 hope to add over the coming years. We also suggest a number of contributions
@@ -44,10 +82,6 @@ release!). Contributions are certainly not limited to these suggestions!
     [AlphaZero](https://science.sciencemag.org/content/362/6419/1140).
     Preferably, an implementation that closely matches the pseudo-code provided
     in the paper.
-
--   **Baselines for Monte Carlo CFR**. Implementations of the variance-reduction
-    techniques for MCCFR ([Ref1](https://arxiv.org/abs/1809.03057),
-    [Ref2](https://arxiv.org/abs/1907.09633)).
 
 -   **Checkers / Draughts**. This is a classic game and an important one in the
     history of game AI
@@ -108,10 +142,12 @@ release!). Contributions are certainly not limited to these suggestions!
 -   **General Games Wrapper**. There are several general game engine languages
     and databases of general games that currently exist, for example within the
     [general game-playing project](http://www.ggp.org/) and the
-    [Ludii General Game System](http://www.ludii.games/index.html). A very nice
-    addition to OpenSpiel would be a game that interprets games represented in
-    these languages and presents them as OpenSpiel games. This could lead to the
-    potential of evaluating learning agents on hundreds to thousands of games.
+    [Ludii General Game System](http://www.ludii.games/index.html) or
+    [GAMUT](http://gamut.stanford.edu/) (a suite of normal-form game
+    generators). A very nice addition to OpenSpiel would be a game that
+    interprets games represented in these languages and presents them as
+    OpenSpiel games. This could lead to the potential of evaluating learning
+    agents on hundreds to thousands of games.
 
 -   **Go API**. We currently have a prototype [Go](https://golang.org/) API
     similar to the Python API. It is exposed using cgo via a C API much like the
@@ -120,15 +156,11 @@ release!). Contributions are certainly not limited to these suggestions!
     It is not currently ready for release, but should be possible in a future
     update.
 
--   **Grid Worlds**. There are currently three grid world games in OpenSpiel:
-    Markov soccer, the coin game, and cooperative box-pushing. There could be
-    more, especially ones that have been used in multiagent RL such as Laser Tag
-    and Gathering from [Ref1](https://arxiv.org/abs/1711.00832)
-    [Ref2](https://arxiv.org/abs/1702.03037).
-
--   **Hanabi Learning Environment Wrapper**. Provide a game that wraps the
-    [Hanabi Learning Environment](https://arxiv.org/abs/1902.00506). We do have
-    a working prototype, but is not yet ready for release.
+-   **Grid Worlds**. There are currently four grid world games in OpenSpiel:
+    Markov soccer, the coin game, cooperative box-pushing, and laser tag. There
+    could be more, especially ones that have been commonly used in multiagent
+    RL. Also, the current grid worlds can be improved (they all are
+    fully-observable).
 
 -   **Heuristic Payoff Tables and Empirical Game-Theoretic Analysis**. Methods
     found in
@@ -137,9 +169,9 @@ release!). Contributions are certainly not limited to these suggestions!
     [An evolutionary game-theoretic analysis of poker strategies](https://www.sciencedirect.com/science/article/pii/S1875952109000056),
     [Ref4](https://arxiv.org/abs/1803.06376).
 
--   **MacOS support**. We would like to officially support MacOS, if possible.
-    We do not anticipate any problems, as all the dependencies are available via
-    `brew`, but we have not tested this yet.
+-   **Monte Carlo Tree Search Solver**. General enhancement to Monte Carlo tree
+    search, backpropagate proven wins and loses as far up as possible. See
+    [Winands el al. '08](https://dke.maastrichtuniversity.nl/m.winands/documents/uctloa.pdf).
 
 -   **Minimax-Q and other classic MARL algorithms**. Minimax-Q is a classic
     multiagent reinforcement learning algorithm
@@ -207,11 +239,3 @@ release!). Contributions are certainly not limited to these suggestions!
     for running a batch of episodes using Tensorflow directly from C++ (in
     `contrib/`). It has not yet been tested with CMake and public Tensorflow. We
     would like to officially support this and move it into the core library.
-
--   **Value Iteration for Simultaneous Move Games**. The current implementation
-    of value iteration does not support simultaneous move games despite having
-    the necessary LP-solving routines needed. This is a simple change to support
-    solving simultaneous-move games.
-
--   **Windows Support**. We would like to officially support Windows, if
-    possible.

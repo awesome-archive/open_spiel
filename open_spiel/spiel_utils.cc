@@ -14,12 +14,17 @@
 
 #include "open_spiel/spiel_utils.h"
 
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
+#include <vector>
+
 
 namespace open_spiel {
 
-int NextPlayerRoundRobin(int player, int nplayers) {
+int NextPlayerRoundRobin(Player player, int nplayers) {
   if (player + 1 < nplayers) {
     return player + 1;
   } else {
@@ -28,36 +33,11 @@ int NextPlayerRoundRobin(int player, int nplayers) {
 }
 
 // Helper function to determine the previous player in a round robin.
-int PreviousPlayerRoundRobin(int player, int nplayers) {
+int PreviousPlayerRoundRobin(Player player, int nplayers) {
   if (player - 1 >= 0) {
     return player - 1;
   } else {
     return nplayers - 1;
-  }
-}
-
-std::pair<bool, std::string> ParseCmdLineArg(int argc, char** argv,
-                                             const std::string& name) {
-  std::string prefix = "--" + name + "=";
-
-  for (int i = 0; i < argc; ++i) {
-    std::string arg = argv[i];
-    if (arg.find(prefix) == 0) {
-      return std::pair<bool, std::string>(true, arg.substr(prefix.length()));
-    }
-  }
-
-  return std::pair<bool, std::string>(false, "");
-}
-
-std::string ParseCmdLineArgDefault(int argc, char** argv,
-                                   const std::string& name,
-                                   const std::string& default_value) {
-  std::pair<bool, std::string> ret_value = ParseCmdLineArg(argc, argv, name);
-  if (ret_value.first) {
-    return ret_value.second;
-  } else {
-    return default_value;
   }
 }
 
@@ -90,6 +70,25 @@ void UnrankActionMixedBase(Action action, const std::vector<int>& bases,
     action /= bases[i];
   }
   SPIEL_CHECK_EQ(action, 0);
+}
+
+std::optional<std::string> FindFile(const std::string& filename, int levels) {
+  std::string candidate_filename = filename;
+  for (int i = 0; i <= levels; ++i) {
+    if (i == 0) {
+      std::ifstream file(candidate_filename.c_str());
+      if (file.good()) {
+        return candidate_filename;
+      }
+    } else {
+      candidate_filename = "../" + candidate_filename;
+      std::ifstream file(candidate_filename.c_str());
+      if (file.good()) {
+        return candidate_filename;
+      }
+    }
+  }
+  return std::nullopt;
 }
 
 void SpielDefaultErrorHandler(const std::string& error_msg) {

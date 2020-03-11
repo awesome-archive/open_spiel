@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,16 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/bin/bash
-
 set -e
 set -x
 
-virtualenv -p python ./venv
+if [ ! "$TRAVIS_USE_NOX" -eq 0 ]; then
+    # Build and run tests using nox
+    pip3 install nox
+    nox -s tests
+    exit 0
+fi
+
+sudo -H pip3 install --upgrade pip
+sudo -H pip3 install --upgrade setuptools
+sudo -H pip3 install --force-reinstall virtualenv
+
+virtualenv -p python3 ./venv
 source ./venv/bin/activate
 
-python --version
-pip3 install -r requirements.txt
+python3 --version
+pip3 install --upgrade -r requirements.txt -q
 
 ./open_spiel/scripts/build_and_run_tests.sh
 deactivate

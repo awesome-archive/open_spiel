@@ -18,7 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import unittest
+from absl.testing import absltest
 
 import numpy as np
 
@@ -26,13 +26,13 @@ from open_spiel.python.bots import uniform_random
 import pyspiel
 
 
-class BotTest(unittest.TestCase):
+class BotTest(absltest.TestCase):
 
   def test_python_and_cpp_bot(self):
     game = pyspiel.load_game("kuhn_poker")
     bots = [
-        pyspiel.make_uniform_random_bot(game, 0, 1234),
-        uniform_random.UniformRandomBot(game, 1, np.random.RandomState(4321)),
+        pyspiel.make_uniform_random_bot(0, 1234),
+        uniform_random.UniformRandomBot(1, np.random.RandomState(4321)),
     ]
     results = np.array([
         pyspiel.evaluate_bots(game.new_initial_state(), bots, iteration)
@@ -43,4 +43,4 @@ class BotTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

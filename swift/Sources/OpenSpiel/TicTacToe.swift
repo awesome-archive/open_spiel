@@ -28,10 +28,10 @@ public class TicTacToe: GameProtocol {
     information: .perfect,
     utility: .zeroSum,
     rewardModel: .terminal,
-    maxPlayers: 10,
+    maxPlayers: 2,
     minPlayers: 2,
-    providesInformationState: true,
-    providesInformationStateAsNormalizedVector: true
+    providesInformationStateString: true,
+    providesInformationStateTensor: true
   )
 
   /// An action represents the squares that can be marked.
@@ -52,7 +52,7 @@ public class TicTacToe: GameProtocol {
     public var currentPlayer: Player = .player(0)
     public var winner: Player?
     public func utility(for player: Player) -> Double {
-      if !isTerminal { return 0 }
+      if winner == nil { return 0 }
       if winner == player {
         return 1
       } else {
@@ -60,14 +60,14 @@ public class TicTacToe: GameProtocol {
       }
     }
 
-    public func informationState(for player: Player) -> String {
+    public func informationStateString(for player: Player) -> String {
       history.map { String(describing: $0) }.joined(separator: " ")
     }
 
-    public func informationStateAsNormalizedVector(for player: Player) -> [Double] {
+    public func informationStateTensor(for player: Player) -> [Double] {
       var informationState: [Double] = Array(
         repeating: 0,
-        count: game.informationStateNormalizedVectorShape[0])
+        count: game.informationStateTensorShape[0])
       let viewSize = game.boardSize * game.boardSize
       for i in 0..<game.boardSize {
         for j in 0..<game.boardSize {
@@ -106,7 +106,7 @@ public class TicTacToe: GameProtocol {
     }
     return actions
   }()
-  public var informationStateNormalizedVectorShape: [Int] { [3 * boardSize * boardSize] }
+  public var informationStateTensorShape: [Int] { [3 * boardSize * boardSize] }
   public var maxGameLength: Int { boardSize * boardSize }
   public var initialState: State { State(self) }
   public init() {}
@@ -166,6 +166,9 @@ extension TicTacToe.State {
       winner = currentPlayer
       currentPlayer = .terminal
       return
+    }
+    if history.count == (game.boardSize * game.boardSize) {
+      currentPlayer = .terminal
     }
   }
 
