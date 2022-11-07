@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,16 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_SIMULTANEOUS_MOVE_GAME_H_
-#define THIRD_PARTY_OPEN_SPIEL_SIMULTANEOUS_MOVE_GAME_H_
+#ifndef OPEN_SPIEL_SIMULTANEOUS_MOVE_GAME_H_
+#define OPEN_SPIEL_SIMULTANEOUS_MOVE_GAME_H_
+
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "open_spiel/spiel.h"
 
 // This is the generic superclass for simultaneous move games. A simultaneous
 // move game (AKA Markov Game) is one where all agents submit actions on each
-// time step, and the state transists to a new state as a function of the
-// joint action. All players know the exact current state of the game.
-// For normal-form or matrix games, see normal_form_game.h or matrix.h.
+// time step, and the state transists to a new state as a function of the joint
+// action.
+//
+// Note that this implementation also supports mixed turn-based and simultaneous
+// steps at which it is only a single player submits an action, when not at
+// simultaneous nodes and not at chance nodes.
+//
+// For normal-form or matrix games, see normal_form_game.h or
+// matrix.h.
 
 namespace open_spiel {
 
@@ -29,22 +39,37 @@ class SimMoveGame;
 
 class SimMoveState : public State {
  public:
-  SimMoveState(int num_distinct_actions, int num_players)
-      : State(num_distinct_actions, num_players) {}
+  SimMoveState(std::shared_ptr<const Game> game) : State(game) {}
   SimMoveState(const SimMoveState&) = default;
 
   // Subclasses must implement a per-player LegalActions function.
-  virtual std::vector<Action> LegalActions(int player) const = 0;
+  std::vector<Action> LegalActions(Player player) const override = 0;
 
-  // LegalActions() returns either the chance outcomes (at a chance node),
-  // or a flattened form of the joint legal actions (at simultaneous move
-  // nodes) - see discussion below.
+  // LegalActions() returns either the chance outcomes (at a chance node), a
+  // flattened form of the joint legal actions (at simultaneous move nodes) -
+  // see discussion below, or the actions for the current player (at nodes
+  // where only a single player is making a decision).
   std::vector<Action> LegalActions() const override {
     if (IsSimultaneousNode()) {
       return LegalFlatJointActions();
-    } else {
-      SPIEL_CHECK_TRUE(IsChanceNode());
+    } else if (IsTerminal()) {
+      return {};
+    } else if (IsChanceNode()) {
       return LegalChanceOutcomes();
+    } else {
+      return LegalActions(CurrentPlayer());
+    }
+  }
+
+  // We override this rather than DoApplyAction() since we want to prevent
+  // saving the flat action in the history.
+  void ApplyAction(Action action) override {
+    if (IsSimultaneousNode()) {
+      ApplyFlatJointAction(action);
+    } else {
+      const Player player = CurrentPlayer();
+      DoApplyAction(action);
+      history_.push_back({player, action});
     }
   }
 
@@ -91,10 +116,6 @@ class SimMoveState : public State {
   // Apply a flat joint action, updating the state.
   void ApplyFlatJointAction(Action flat_action);
 
-  void DoApplyAction(Action action) override {
-    SPIEL_CHECK_TRUE(IsSimultaneousNode());
-    ApplyFlatJointAction(action);
-  }
   void DoApplyActions(const std::vector<Action>& actions) override = 0;
 };
 
@@ -106,4 +127,4 @@ class SimMoveGame : public Game {
 
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_SIMULTANEOUS_MOVE_GAME_H_
+#endif  // OPEN_SPIEL_SIMULTANEOUS_MOVE_GAME_H_

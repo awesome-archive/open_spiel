@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_KUHN_POKER_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_KUHN_POKER_H_
+#ifndef OPEN_SPIEL_GAMES_KUHN_POKER_H_
+#define OPEN_SPIEL_GAMES_KUHN_POKER_H_
 
 #include <array>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "open_spiel/policy.h"
 #include "open_spiel/spiel.h"
+#include "open_spiel/spiel_utils.h"
 
 // A simple game that includes chance and imperfect information
 // http://en.wikipedia.org/wiki/Kuhn_poker
@@ -37,42 +39,49 @@
 namespace open_spiel {
 namespace kuhn_poker {
 
-constexpr const int kNumInfoStatesP0 = 6;
-constexpr const int kNumInfoStatesP1 = 6;
+inline constexpr const int kNumInfoStatesP0 = 6;
+inline constexpr const int kNumInfoStatesP1 = 6;
 
 enum ActionType { kPass = 0, kBet = 1 };
 
 class KuhnGame;
+class KuhnObserver;
 
 class KuhnState : public State {
  public:
-  explicit KuhnState(int num_distinct_actions, int num_players);
+  explicit KuhnState(std::shared_ptr<const Game> game);
   KuhnState(const KuhnState&) = default;
 
-  int CurrentPlayer() const override;
+  Player CurrentPlayer() const override;
 
-  std::string ActionToString(int player, Action move) const override;
+  std::string ActionToString(Player player, Action move) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
-  std::string InformationState(int player) const override;
-  std::string Observation(int player) const override;
-  void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
-  void ObservationAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string InformationStateString(Player player) const override;
+  std::string ObservationString(Player player) const override;
+  void InformationStateTensor(Player player,
+                              absl::Span<float> values) const override;
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
-  void UndoAction(int player, Action move) override;
+  void UndoAction(Player player, Action move) override;
   std::vector<std::pair<Action, double>> ChanceOutcomes() const override;
   std::vector<Action> LegalActions() const override;
   std::vector<int> hand() const { return {card_dealt_[CurrentPlayer()]}; }
+  std::unique_ptr<State> ResampleFromInfostate(
+      int player_id, std::function<double()> rng) const override;
+
+  const std::vector<int>& CardDealt() const { return card_dealt_; }
 
  protected:
   void DoApplyAction(Action move) override;
 
  private:
+  friend class KuhnObserver;
+
   // Whether the specified player made a bet
-  bool DidBet(int player) const;
+  bool DidBet(Player player) const;
 
   // The move history and number of players are sufficient information to
   // specify the state of the game. We keep track of more information to make
@@ -98,19 +107,36 @@ class KuhnGame : public Game {
   double MinUtility() const override;
   double MaxUtility() const override;
   double UtilitySum() const override { return 0; }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new KuhnGame(*this));
-  }
-  std::vector<int> InformationStateNormalizedVectorShape() const override;
-  std::vector<int> ObservationNormalizedVectorShape() const override;
+  std::vector<int> InformationStateTensorShape() const override;
+  std::vector<int> ObservationTensorShape() const override;
   int MaxGameLength() const override { return num_players_ * 2 - 1; }
+  int MaxChanceNodesInHistory() const override { return num_players_; }
+  std::shared_ptr<Observer> MakeObserver(
+      absl::optional<IIGObservationType> iig_obs_type,
+      const GameParameters& params) const override;
+
+  // Used to implement the old observation API.
+  std::shared_ptr<KuhnObserver> default_observer_;
+  std::shared_ptr<KuhnObserver> info_state_observer_;
+  std::shared_ptr<KuhnObserver> public_observer_;
+  std::shared_ptr<KuhnObserver> private_observer_;
 
  private:
   // Number of players.
   int num_players_;
 };
 
+// Returns policy that always passes.
+TabularPolicy GetAlwaysPassPolicy(const Game& game);
+
+// Returns policy that always bets.
+TabularPolicy GetAlwaysBetPolicy(const Game& game);
+
+// The optimal Kuhn policy as stated at https://en.wikipedia.org/wiki/Kuhn_poker
+// The Nash equilibrium is parametrized by alpha \in [0, 1/3].
+TabularPolicy GetOptimalPolicy(double alpha);
+
 }  // namespace kuhn_poker
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_KUHN_POKER_H_
+#endif  // OPEN_SPIEL_GAMES_KUHN_POKER_H_

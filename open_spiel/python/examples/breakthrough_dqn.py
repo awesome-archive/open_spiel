@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,15 +14,11 @@
 
 """DQN agents trained on Breakthrough by independent Q-learning."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from absl import app
 from absl import flags
 from absl import logging
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import dqn
@@ -32,7 +28,10 @@ FLAGS = flags.FLAGS
 
 # Training parameters
 flags.DEFINE_string("checkpoint_dir", "/tmp/dqn_test",
-                    "Directory to save/load the agent.")
+                    "Directory to save/load the agent models.")
+flags.DEFINE_integer(
+    "save_every", int(1e4),
+    "Episode frequency at which the DQN agent models are saved.")
 flags.DEFINE_integer("num_train_episodes", int(1e6),
                      "Number of training episodes.")
 flags.DEFINE_integer(
@@ -103,14 +102,15 @@ def main(_):
             replay_buffer_capacity=FLAGS.replay_buffer_capacity,
             batch_size=FLAGS.batch_size) for idx in range(num_players)
     ]
-    saver = tf.train.Saver()
     sess.run(tf.global_variables_initializer())
 
     for ep in range(FLAGS.num_train_episodes):
       if (ep + 1) % FLAGS.eval_every == 0:
         r_mean = eval_against_random_bots(env, agents, random_agents, 1000)
         logging.info("[%s] Mean episode rewards %s", ep + 1, r_mean)
-        saver.save(sess, FLAGS.checkpoint_dir, ep)
+      if (ep + 1) % FLAGS.save_every == 0:
+        for agent in agents:
+          agent.save(FLAGS.checkpoint_dir)
 
       time_step = env.reset()
       while not time_step.last():

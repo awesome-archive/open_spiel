@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,20 +18,14 @@ Two Q-Learning agents are trained by playing against each other. Then, the game
 can be played against the agents from the command line.
 
 After about 10**5 training episodes, the agents reach a good policy: win rate
-against random oponents is around 99% for player 0 and 92% for player 1.
+against random opponents is around 99% for player 0 and 92% for player 1.
 """
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import logging
 import sys
 from absl import app
 from absl import flags
 import numpy as np
-from six.moves import input
-from six.moves import range
 
 from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import random_agent

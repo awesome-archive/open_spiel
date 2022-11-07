@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,14 +25,13 @@ Shayegan Omidshafiei, Daniel Hennes, Dustin Morrill, Remi Munos,
   2019.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python.algorithms import rcfr
+
+# Temporarily disable TF2 behavior while the code is not updated.
+tf.disable_v2_behavior()
 
 
 def thresholded(logits, regrets, threshold=2.0):

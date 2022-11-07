@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,19 +26,20 @@ namespace algorithms {
 namespace {
 
 std::unique_ptr<HistoryNode> RecursivelyBuildGameTree(
-    std::unique_ptr<State> state, int player_id,
-    std::unordered_map<std::string, HistoryNode*>* state_to_node) {
+    std::unique_ptr<State> state, Player player_id,
+    absl::flat_hash_map<std::string, HistoryNode*>* state_to_node) {
   std::unique_ptr<HistoryNode> node(
       new HistoryNode(player_id, std::move(state)));
   if (state_to_node == nullptr) SpielFatalError("state_to_node is null.");
   (*state_to_node)[node->GetHistory()] = node.get();
   State* state_ptr = node->GetState();
   switch (node->GetType()) {
+    case StateType::kMeanField: {
+      SpielFatalError("kMeanField not supported.");
+    }
     case StateType::kChance: {
       double probability_sum = 0;
-      for (const auto& outcome_and_prob : state_ptr->ChanceOutcomes()) {
-        Action outcome = outcome_and_prob.first;
-        double prob = outcome_and_prob.second;
+      for (const auto& [outcome, prob] : state_ptr->ChanceOutcomes()) {
         std::unique_ptr<State> child = state_ptr->Child(outcome);
         if (child == nullptr) {
           SpielFatalError("Can't add child; child is null.");
@@ -78,23 +79,25 @@ std::unique_ptr<HistoryNode> RecursivelyBuildGameTree(
 
 }  // namespace
 
-HistoryNode::HistoryNode(int player_id, std::unique_ptr<State> game_state)
+HistoryNode::HistoryNode(Player player_id, std::unique_ptr<State> game_state)
     : state_(std::move(game_state)),
-      history_(state_->ToString()),
+      history_(state_->HistoryString()),
       type_(state_->GetType()) {
   // Unless it's the opposing player's turn, we always view the game from the
   // view of player player_id.
   if (type_ == StateType::kDecision && state_->CurrentPlayer() != player_id) {
-    infostate_ = state_->InformationState();
+    infostate_ = state_->InformationStateString();
+  } else if (type_ == StateType::kChance) {
+    infostate_ = kChanceNodeInfostateString;
+  } else if (type_ == StateType::kTerminal) {
+    infostate_ = kTerminalNodeInfostateString;
   } else {
-    infostate_ = state_->InformationState(player_id);
+    infostate_ = state_->InformationStateString(player_id);
   }
   // Compute & store the legal actions so we can check that all actions we're
   // adding are legal.
   for (Action action : state_->LegalActions()) legal_actions_.insert(action);
-  if (type_ == StateType::kTerminal) {
-    value_ = state_->PlayerReturn(player_id);
-  }
+  if (type_ == StateType::kTerminal) value_ = state_->PlayerReturn(player_id);
 }
 
 void HistoryNode::AddChild(
@@ -103,11 +106,7 @@ void HistoryNode::AddChild(
   if (child.second == nullptr) {
     SpielFatalError("Error inserting child; child is null.");
   }
-  if (child.first < 0. || child.first > 1.) {
-    SpielFatalError(absl::StrCat(
-        "AddChild error: Probability for child must be in [0, 1], not: ",
-        child.first));
-  }
+  SPIEL_CHECK_PROB_TOLERANCE(child.first, ProbabilityDefaultTolerance());
   child_info_[outcome] = std::move(child);
   if (child_info_.size() > legal_actions_.size()) {
     SpielFatalError("More children than legal actions.");
@@ -121,8 +120,7 @@ std::pair<double, HistoryNode*> HistoryNode::GetChild(Action outcome) {
   }
   // it->second.first is the probability associated with outcome, so as it is a
   // probability, it must be in [0, 1].
-  SPIEL_CHECK_GE(it->second.first, 0.);
-  SPIEL_CHECK_LE(it->second.first, 1.);
+  SPIEL_CHECK_PROB_TOLERANCE(it->second.first, ProbabilityDefaultTolerance());
   std::pair<double, HistoryNode*> child =
       std::make_pair(it->second.first, it->second.second.get());
   if (child.second == nullptr) {
@@ -134,37 +132,35 @@ std::pair<double, HistoryNode*> HistoryNode::GetChild(Action outcome) {
 std::vector<Action> HistoryNode::GetChildActions() const {
   std::vector<Action> actions;
   actions.reserve(child_info_.size());
-  for (const auto& kv : child_info_) actions.push_back(kv.first);
+  for (const auto& [action, _] : child_info_) actions.push_back(action);
   return actions;
 }
 
 HistoryNode* HistoryTree::GetByHistory(const std::string& history) {
-  HistoryNode* node = state_to_node_[history];
-  if (node == nullptr) {
+  auto it = state_to_node_.find(history);
+  if (it == state_to_node_.end()) {
     SpielFatalError(absl::StrCat("Node is null for history: '", history, "'"));
   }
-  return node;
+  return it->second;
 }
 
 std::vector<std::string> HistoryTree::GetHistories() {
   std::vector<std::string> histories;
   histories.reserve(state_to_node_.size());
-  for (const auto& kv : state_to_node_) {
-    histories.push_back(kv.first);
-  }
+  for (const auto& [history, _] : state_to_node_) histories.push_back(history);
   return histories;
 }
 
 // Builds game tree consisting of all decision nodes for player_id.
-HistoryTree::HistoryTree(std::unique_ptr<State> state, int player_id) {
+HistoryTree::HistoryTree(std::unique_ptr<State> state, Player player_id) {
   root_ =
       RecursivelyBuildGameTree(std::move(state), player_id, &state_to_node_);
 }
 
 ActionsAndProbs GetSuccessorsWithProbs(const State& state,
-                                       int best_responder_id,
+                                       Player best_responder,
                                        const Policy* policy) {
-  if (state.CurrentPlayer() == best_responder_id) {
+  if (state.CurrentPlayer() == best_responder) {
     ActionsAndProbs state_policy;
     for (const auto& legal_action : state.LegalActions()) {
       // Counterfactual reach probabilities exclude the player's
@@ -177,30 +173,30 @@ ActionsAndProbs GetSuccessorsWithProbs(const State& state,
   } else {
     // Finally, we look at the policy we are finding a best response to, and
     // get our probabilities from there.
-    auto state_policy = policy->GetStatePolicy(state.InformationState());
+    auto state_policy = policy->GetStatePolicy(state);
     if (state_policy.empty()) {
-      SpielFatalError(state.InformationState() + " not found in policy.");
+      SpielFatalError(state.InformationStateString() + " not found in policy.");
     }
     return state_policy;
   }
 }
 
-// TODO: If this is a bottleneck, it should be possible
+// TODO(author1): If this is a bottleneck, it should be possible
 // to pass the probabilities-so-far into the call, and get everything right
 // the first time, without recursion. The recursion is simpler, however.
 std::vector<std::pair<std::unique_ptr<State>, double>> DecisionNodes(
-    const State& parent_state, int best_responder_id, const Policy* policy) {
+    const State& parent_state, Player best_responder, const Policy* policy) {
   // If the state is terminal, then there are no more decisions to be made,
   // so we're done.
   if (parent_state.IsTerminal()) return {};
 
   std::vector<std::pair<std::unique_ptr<State>, double>> states_and_probs;
   // We only consider states where the best_responder is making a decision.
-  if (parent_state.CurrentPlayer() == best_responder_id) {
+  if (parent_state.CurrentPlayer() == best_responder) {
     states_and_probs.push_back({parent_state.Clone(), 1.});
   }
   ActionsAndProbs actions_and_probs =
-      GetSuccessorsWithProbs(parent_state, best_responder_id, policy);
+      GetSuccessorsWithProbs(parent_state, best_responder, policy);
   for (open_spiel::Action action : parent_state.LegalActions()) {
     std::unique_ptr<State> child = parent_state.Child(action);
 
@@ -209,37 +205,34 @@ std::vector<std::pair<std::unique_ptr<State>, double>> DecisionNodes(
     // this is only done once, at the start of the exploitability calculation,
     // this is fine for now.
     std::vector<std::pair<std::unique_ptr<State>, double>> children =
-        DecisionNodes(*child, best_responder_id, policy);
-    const double prob = GetProb(actions_and_probs, action);
-    SPIEL_CHECK_GE(prob, 0);
-    for (auto& state_and_prob : children) {
+        DecisionNodes(*child, best_responder, policy);
+    const double policy_prob = GetProb(actions_and_probs, action);
+    SPIEL_CHECK_PROB_TOLERANCE(policy_prob, ProbabilityDefaultTolerance());
+    for (auto& [state, prob] : children) {
       states_and_probs.push_back(
-          {std::move(state_and_prob.first),
+          {std::move(state),
            // We weight the child probabilities by the probability of taking
            // the action that would lead to them.
-           prob * state_and_prob.second});
+           policy_prob * prob});
     }
   }
   return states_and_probs;
 }
 
-std::unordered_map<std::string, std::vector<std::pair<HistoryNode*, double>>>
-GetAllInfoSets(std::unique_ptr<State> state, int best_responder_id,
+absl::flat_hash_map<std::string, std::vector<std::pair<HistoryNode*, double>>>
+GetAllInfoSets(std::unique_ptr<State> state, Player best_responder,
                const Policy* policy, HistoryTree* tree) {
-  std::unordered_map<std::string, std::vector<std::pair<HistoryNode*, double>>>
+  absl::flat_hash_map<std::string, std::vector<std::pair<HistoryNode*, double>>>
       infosets;
   // We only need decision nodes, as there's no decision to be made at chance
   // nodes (we randomly sample from the different outcomes there).
   std::vector<std::pair<std::unique_ptr<State>, double>> states_and_probs =
-      DecisionNodes(*state, best_responder_id, policy);
+      DecisionNodes(*state, best_responder, policy);
   infosets.reserve(states_and_probs.size());
-  for (const auto& state_and_prob : states_and_probs) {
+  for (const auto& [state, prob] : states_and_probs) {
     // We look at each decision from the perspective of the best_responder.
-    std::string infostate =
-        state_and_prob.first->InformationState(best_responder_id);
-    infosets[infostate].push_back(
-        {tree->GetByHistory(state_and_prob.first->ToString()),
-         state_and_prob.second});
+    std::string infostate = state->InformationStateString(best_responder);
+    infosets[infostate].push_back({tree->GetByHistory(*state), prob});
   }
   return infosets;
 }

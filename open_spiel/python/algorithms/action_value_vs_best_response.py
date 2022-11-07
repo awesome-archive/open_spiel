@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,20 +14,17 @@
 
 """Compute the value of action given a policy vs a best responder."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import collections
-import numpy as np
 
 from open_spiel.python import policy
+from open_spiel.python.algorithms import action_value
 from open_spiel.python.algorithms import get_all_states
+from open_spiel.python.algorithms import policy_utils
 import pyspiel
 
 
 def _transitions(state, policies):
-  """Returns a list of (action, prob) pairs from the specifed state."""
+  """Returns a list of (action, prob) pairs from the specified state."""
   if state.is_chance_node():
     return state.chance_outcomes()
   else:
@@ -41,6 +38,28 @@ def _tuples_from_policy(policy_vector):
   ]
 
 
+_CalculatorReturn = collections.namedtuple(
+    "_CalculatorReturn",
+    [
+        # The exploitability of the opponent strategy, i.e. the value of the
+        # best-responder player BR.
+        "exploitability",
+        # An array of shape `[len(info_states), game.num_distinct_actions()]`
+        # giving the value of each action vs the best response.
+        # Will be zero for invalid actions.
+        "values_vs_br",
+        # The player's counterfactual reach probability of this infostate when
+        # playing against the BR, as a list of shape [num_info_states].
+        "counterfactual_reach_probs_vs_br",
+        # The reach probability of the current player at the infostates when
+        # playing against the BR, as list shape [num_info_states].
+        # This is the product of the current player probs along *one* trajectory
+        # leading to this info-state (this number should be the same along
+        # any trajectory leading to this info-state because of perfect recall).
+        "player_reach_probs_vs_br",
+    ])
+
+
 class Calculator(object):
   """Class to orchestrate the calculation."""
 
@@ -48,84 +67,33 @@ class Calculator(object):
     if game.num_players() != 2:
       raise ValueError("Only supports 2-player games.")
     self.game = game
-    self.action_values = None
-    self.num_actions = game.num_distinct_actions()
-    self.info_state_prob = None
-    self.info_state_cf_prob = None
-    self.info_state_chance_prob = None
+    self._num_players = game.num_players()
+    self._num_actions = game.num_distinct_actions()
+
+    self._action_value_calculator = action_value.TreeWalkCalculator(game)
+    # best_responder[i] is a best response to the provided policy for player i.
+    # It is therefore a policy for player (1-i).
     self._best_responder = {0: None, 1: None}
     self._all_states = None
-
-  def get_action_values(self,
-                        state,
-                        policies,
-                        reach_prob=1.0,
-                        cf_prob=1.0,
-                        chance_prob=1.0):
-    """Computes the value of the state given the policies.
-
-    Args:
-      state: The state to start analysis from.
-      policies: List of `policy.Policy` objects, one per player.
-      reach_prob: Total probability of reaching `state`.
-      cf_prob: Opponent and chance probability of reaching `state`.
-      chance_prob: Chance probability of reaching `state`.
-
-    Returns:
-      The value of the root state to each player.
-
-    Side-effects - populates:
-      `self.action_values[(player, infostate)][action]`.
-      `self.info_state_prob[(player, infostate)]`.
-      `self.info_state_cf_prob[(player, infostate)]`.
-      `self.info_state_chance_prob[(player, infostate)]`.
-
-    We use `(player, infostate)` as a key in case the same infostate is shared
-    by multiple players, e.g. in a simultaneous-move game.
-    """
-    if state.is_terminal():
-      return np.array(state.returns())
-    is_chance = state.is_chance_node()
-    if not is_chance:
-      key = (state.current_player(), state.information_state())
-      self.info_state_prob[key] += reach_prob
-      self.info_state_cf_prob[key] += cf_prob
-      self.info_state_chance_prob[key] += chance_prob
-    value = np.zeros(len(policies))
-    include_cfp = (state.current_player() != self.player)
-    for action, prob in _transitions(state, policies):
-      child = state.child(action)
-      child_value = self.get_action_values(
-          child, policies, reach_prob * prob,
-          cf_prob * prob if include_cfp else cf_prob,
-          chance_prob * prob if is_chance else chance_prob)
-      if not state.is_chance_node():
-        self.action_values[key][action] += child_value * reach_prob
-      value += child_value * prob
-    return value
 
   def __call__(self, player, player_policy, info_states):
     """Computes action values per state for the player.
 
     Args:
-      player: The id of the player 0 <= player < game.num_players().
+      player: The id of the player (0 <= player < game.num_players()). This
+        player will play `player_policy`, while the opponent will play a best
+        response.
       player_policy: A `policy.Policy` object.
       info_states: A list of info state strings.
 
     Returns:
-      A triple `(exploitability, vvbr, brcfrp)`
-      exploitability: the exploitability of the supplied strategy
-      vvbr: An array of shape `[len(info_states), game.num_distinct_actions()]`
-        giving the value of each action vs the best response.
-        Will be zero for invalid actions.
-      brcfrp: The player's counterfactual reach probability of this infostate
-        when playing against the best response.
+      A `_CalculatorReturn` nametuple. See its docstring for the documentation.
     """
     self.player = player
     opponent = 1 - player
 
     def best_response_policy(state):
-      infostate = state.information_state(opponent)
+      infostate = state.information_state_string(opponent)
       action = best_response_actions[infostate]
       return [(action, 1.0)]
 
@@ -148,14 +116,12 @@ class Calculator(object):
             include_terminals=False,
             include_chance_states=False)
         self._state_to_information_state = {
-            state: self._all_states[state].information_state()
+            state: self._all_states[state].information_state_string()
             for state in self._all_states
         }
-      tabular_policy = dict()
-      for state in self._all_states:
-        information_state = self._state_to_information_state[state]
-        tabular_policy[information_state] = list(
-            player_policy.action_probabilities(self._all_states[state]).items())
+      tabular_policy = policy_utils.policy_to_dict(
+          player_policy, self.game, self._all_states,
+          self._state_to_information_state)
 
     # When constructed, TabularBestResponse does a lot of work; we can save that
     # work by caching it.
@@ -166,35 +132,25 @@ class Calculator(object):
       self._best_responder[player].set_policy(tabular_policy)
 
     # Computing the value at the root calculates best responses everywhere.
-    history = str(self.game.new_initial_state())
-    best_response_value = self._best_responder[player].value(history)
+    best_response_value = self._best_responder[player].value_from_state(
+        self.game.new_initial_state())
     best_response_actions = self._best_responder[
         player].get_best_response_actions()
 
     # Compute action values
-    self.action_values = collections.defaultdict(
-        lambda: collections.defaultdict(lambda: np.zeros(2)))
-    self.info_state_prob = collections.defaultdict(float)
-    self.info_state_cf_prob = collections.defaultdict(float)
-    self.info_state_chance_prob = collections.defaultdict(float)
-    self.get_action_values(
-        self.game.new_initial_state(), {
-            player:
-                player_policy,
-            opponent:
-                policy.PolicyFromCallable(self.game, best_response_policy),
-        })
-
-    # Collect normalized action values for each information state
-    rv = []
-    cfrp = []
-    for info_state in info_states:
-      av = self.action_values[(player, info_state)]
-      norm_prob = self.info_state_prob[(player, info_state)]
-      rv.append([(av[a][player] / norm_prob) if
-                 (a in av and norm_prob > 0) else 0
-                 for a in range(self.num_actions)])
-      cfrp.append(self.info_state_cf_prob[(player, info_state)])
+    self._action_value_calculator.compute_all_states_action_values({
+        player:
+            player_policy,
+        opponent:
+            policy.tabular_policy_from_callable(
+                self.game, best_response_policy, [opponent]),
+    })
+    obj = self._action_value_calculator._get_tabular_statistics(  # pylint: disable=protected-access
+        ((player, s) for s in info_states))
 
     # Return values
-    return best_response_value, rv, cfrp
+    return _CalculatorReturn(
+        exploitability=best_response_value,
+        values_vs_br=obj.action_values,
+        counterfactual_reach_probs_vs_br=obj.counterfactual_reach_probs,
+        player_reach_probs_vs_br=obj.player_reach_probs)

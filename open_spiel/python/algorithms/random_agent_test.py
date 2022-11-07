@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for google3.third_party.open_spiel.python.algorithms.random_agent."""
+"""Tests for open_spiel.python.algorithms.random_agent."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import unittest
+from absl.testing import absltest
 import numpy as np
 from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import random_agent
 
 
-class RandomAgentTest(unittest.TestCase):
+class RandomAgentTest(absltest.TestCase):
 
   def test_step(self):
     agent = random_agent.RandomAgent(player_id=0, num_actions=10)
@@ -50,4 +46,4 @@ class RandomAgentTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

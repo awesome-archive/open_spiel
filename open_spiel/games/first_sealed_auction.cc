@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,28 +23,27 @@ namespace first_sealed_auction {
 namespace {
 
 // Facts about the game
-const GameType kGameType{
-    /*short_name=*/"first_sealed_auction",
-    /*long_name=*/"First-Price Sealed-Bid Auction",
-    GameType::Dynamics::kSequential,
-    GameType::ChanceMode::kExplicitStochastic,
-    GameType::Information::kImperfectInformation,
-    GameType::Utility::kGeneralSum,
-    GameType::RewardModel::kTerminal,
-    /*max_num_players=*/10,
-    /*min_num_players=*/2,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/true,
-    /*provides_observation=*/true,
-    /*provides_observation_as_normalized_vector=*/true,
-    /*parameter_specification=*/
-    {
-        {"players", {GameParameter::Type::kInt, false}},
-        {"max_value", {GameParameter::Type::kInt, false}},
-    }};
+const GameType kGameType{/*short_name=*/"first_sealed_auction",
+                         /*long_name=*/"First-Price Sealed-Bid Auction",
+                         GameType::Dynamics::kSequential,
+                         GameType::ChanceMode::kExplicitStochastic,
+                         GameType::Information::kImperfectInformation,
+                         GameType::Utility::kGeneralSum,
+                         GameType::RewardModel::kTerminal,
+                         /*max_num_players=*/10,
+                         /*min_num_players=*/2,
+                         /*provides_information_state_string=*/true,
+                         /*provides_information_state_tensor=*/true,
+                         /*provides_observation_string=*/true,
+                         /*provides_observation_tensor=*/true,
+                         /*parameter_specification=*/
+                         {
+                             {"players", GameParameter(kDefaultPlayers)},
+                             {"max_value", GameParameter(kDefaultMaxValue)},
+                         }};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new FPSBAGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new FPSBAGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -52,12 +51,11 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 
 FPSBAGame::FPSBAGame(const GameParameters& params)
     : Game(kGameType, params),
-      num_players_(ParameterValue<int>("players", kDefaultPlayers)),
-      max_value_(ParameterValue<int>("max_value", kDefaultMaxValue)) {}
+      num_players_(ParameterValue<int>("players")),
+      max_value_(ParameterValue<int>("max_value")) {}
 
-FPSBAState::FPSBAState(int num_distinct_actions, int num_players)
-    : State(num_distinct_actions, num_players),
-      max_value_(num_distinct_actions) {}
+FPSBAState::FPSBAState(std::shared_ptr<const Game> game)
+    : State(game), max_value_(game->NumDistinctActions()) {}
 
 int FPSBAState::CurrentPlayer() const {
   if (valuations_.size() < num_players_) return kChancePlayerId;
@@ -69,7 +67,7 @@ int FPSBAState::CurrentPlayer() const {
 std::vector<Action> FPSBAState::EligibleWinners() const {
   int max_bid = *std::max_element(bids_.begin(), bids_.end());
   std::vector<Action> eligibles;
-  for (int player = 0; player < num_players_; player++) {
+  for (auto player = Player{0}; player < num_players_; player++) {
     if (bids_[player] == max_bid) {
       eligibles.push_back(player);
     }
@@ -94,7 +92,7 @@ std::vector<Action> FPSBAState::LegalActions() const {
   return {};
 }
 
-std::string FPSBAState::ActionToString(int player, Action action_id) const {
+std::string FPSBAState::ActionToString(Player player, Action action_id) const {
   if (player != kChancePlayerId) {
     return absl::StrCat("Player ", player, " bid: ", action_id);
   } else if (valuations_.size() < num_players_) {
@@ -137,7 +135,7 @@ void FPSBAState::DoApplyAction(Action action_id) {
   }
 }
 
-std::string FPSBAState::InformationState(int player) const {
+std::string FPSBAState::InformationStateString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   if (valuations_.size() <= player) return absl::StrCat("p", player);
@@ -147,13 +145,13 @@ std::string FPSBAState::InformationState(int player) const {
                       bids_[player]);
 }
 
-void FPSBAState::InformationStateAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+void FPSBAState::InformationStateTensor(Player player,
+                                        absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
-  values->resize(2 * max_value_ + num_players_);
-  std::fill(values->begin(), values->end(), 0);
-  auto cursor = values->begin();
+  SPIEL_CHECK_EQ(values.size(), 2 * max_value_ + num_players_);
+  std::fill(values.begin(), values.end(), 0);
+  auto cursor = values.begin();
   cursor[player] = 1;
   cursor += num_players_;
   if (valuations_.size() > player) {
@@ -164,24 +162,24 @@ void FPSBAState::InformationStateAsNormalizedVector(
     cursor[bids_[player]] = 1;
   }
   cursor += max_value_;
-  SPIEL_CHECK_EQ(cursor - values->begin(), values->size());
+  SPIEL_CHECK_EQ(cursor - values.begin(), values.size());
 }
 
-std::string FPSBAState::Observation(int player) const {
+std::string FPSBAState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   if (valuations_.size() <= player) return "";
   return absl::StrCat(valuations_[player]);
 }
 
-void FPSBAState::ObservationAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+void FPSBAState::ObservationTensor(Player player,
+                                   absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
-  values->resize(max_value_);
-  std::fill(values->begin(), values->end(), 0);
+  SPIEL_CHECK_EQ(values.size(), max_value_);
+  std::fill(values.begin(), values.end(), 0);
   if (valuations_.size() > player) {
-    (*values)[valuations_[player] - 1] = 1;
+    values[valuations_[player] - 1] = 1;
   }
 }
 
@@ -194,7 +192,7 @@ ActionsAndProbs FPSBAState::ChanceOutcomes() const {
   } else if (bids_.size() == num_players_ && winner_ == kInvalidPlayer) {
     int max_bid = *std::max_element(bids_.begin(), bids_.end());
     int num_tie = std::count(bids_.begin(), bids_.end(), max_bid);
-    for (int player = 0; player < num_players_; player++) {
+    for (auto player = Player{0}; player < num_players_; player++) {
       if (bids_[player] == max_bid) {
         valuesAndProbs.push_back(std::make_pair(player, 1. / num_tie));
       }

@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_MATRIX_GAMES_UTILS_H_
-#define THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_MATRIX_GAMES_UTILS_H_
+#ifndef OPEN_SPIEL_ALGORITHMS_MATRIX_GAMES_UTILS_H_
+#define OPEN_SPIEL_ALGORITHMS_MATRIX_GAMES_UTILS_H_
 
 #include <memory>
+#include <string>
 
 #include "open_spiel/matrix_game.h"
 #include "open_spiel/spiel.h"
@@ -25,16 +26,16 @@ namespace algorithms {
 
 // Similar to open_spiel::LoadGame but returns specifically a matrix game type
 // so that the subclass's specific methods are accessible.
-std::unique_ptr<matrix_game::MatrixGame> LoadMatrixGame(
+std::shared_ptr<const matrix_game::MatrixGame> LoadMatrixGame(
     const std::string& name);
 
 // Clones a two-player normal-form game and returns it as a MatrixGame. These
 // functions exist because some implementations are more general than
 // two-player, but there are tools designed specifically to work with matrix
 // games, and hence require conversion.
-std::unique_ptr<matrix_game::MatrixGame> AsMatrixGame(
+std::shared_ptr<const matrix_game::MatrixGame> AsMatrixGame(
     const NormalFormGame* game);
-std::unique_ptr<matrix_game::MatrixGame> AsMatrixGame(const Game* game);
+std::shared_ptr<const matrix_game::MatrixGame> AsMatrixGame(const Game* game);
 
 // Creates a two-player extensive-form game (EFG)'s equivalent matrix game.
 //
@@ -51,10 +52,10 @@ std::unique_ptr<matrix_game::MatrixGame> AsMatrixGame(const Game* game);
 //
 // Hence, this method should only be used for  small games! For example, Kuhn
 // poker has 64 deterministic policies, resulting in a 64-by-64 matrix.
-std::unique_ptr<matrix_game::MatrixGame> ExtensiveToMatrixGame(
+std::shared_ptr<const matrix_game::MatrixGame> ExtensiveToMatrixGame(
     const Game& game);
 
 }  // namespace algorithms
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_MATRIX_GAME_UTILS_H_
+#endif  // OPEN_SPIEL_ALGORITHMS_MATRIX_GAME_UTILS_H_

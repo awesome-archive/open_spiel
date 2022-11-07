@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,11 +14,7 @@
 
 """Tests for open_spiel.python.algorithms.cfr."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import unittest
+from absl.testing import absltest
 import numpy as np
 from open_spiel.python import policy
 from open_spiel.python.algorithms import expected_game_score
@@ -27,7 +23,7 @@ from open_spiel.python.algorithms import fictitious_play
 import pyspiel
 
 
-class FictitiousPlayTest(unittest.TestCase):
+class FictitiousPlayTest(absltest.TestCase):
 
   def test_xfp(self):
     game = pyspiel.load_game("kuhn_poker")
@@ -64,8 +60,7 @@ class FictitiousPlayTest(unittest.TestCase):
 
   def test_meta_game_kuhn3p(self):
     print("Kuhn 3p")
-    game = pyspiel.load_game("kuhn_poker",
-                             {"players": pyspiel.GameParameter(3)})
+    game = pyspiel.load_game("kuhn_poker", {"players": 3})
     xfp_solver = fictitious_play.XFPSolver(game, save_oracles=True)
     for _ in range(3):
       xfp_solver.iteration()
@@ -77,8 +72,7 @@ class FictitiousPlayTest(unittest.TestCase):
 
   def test_meta_game_kuhn4p(self):
     print("Kuhn 4p")
-    game = pyspiel.load_game("kuhn_poker",
-                             {"players": pyspiel.GameParameter(4)})
+    game = pyspiel.load_game("kuhn_poker", {"players": 4})
     xfp_solver = fictitious_play.XFPSolver(game, save_oracles=True)
     for _ in range(3):
       xfp_solver.iteration()
@@ -106,10 +100,7 @@ class FictitiousPlayTest(unittest.TestCase):
     for i in range(1000):
       xfp_solver.iteration()
       if i % 10 == 0:
-        conv = exploitability.nash_conv(
-            game,
-            policy.PolicyFromCallable(game,
-                                      xfp_solver.average_policy_callable()))
+        conv = exploitability.nash_conv(game, xfp_solver.average_policy())
         print("FP in Matching Pennies 3p. Iter: {}, NashConv: {}".format(
             i, conv))
 
@@ -119,12 +110,9 @@ class FictitiousPlayTest(unittest.TestCase):
     for i in range(1000):
       xfp_solver.iteration()
       if i % 10 == 0:
-        conv = exploitability.nash_conv(
-            game,
-            policy.PolicyFromCallable(game,
-                                      xfp_solver.average_policy_callable()))
+        conv = exploitability.nash_conv(game, xfp_solver.average_policy())
         print("FP in Shapley's Game. Iter: {}, NashConv: {}".format(i, conv))
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

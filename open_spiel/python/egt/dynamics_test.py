@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,20 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for google3.third_party.open_spiel.python.egt.dynamics."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+"""Tests for open_spiel.python.egt.dynamics."""
 
 import math
-import unittest
+from absl.testing import absltest
 from absl.testing import parameterized
 
 import numpy as np
 
 from open_spiel.python.egt import dynamics
-from open_spiel.python.egt.utils import nfg_to_ndarray
+from open_spiel.python.egt.utils import game_payoffs_array
 import pyspiel
 
 
@@ -45,11 +41,11 @@ def _sum_j_x_j_ln_x_j_over_x_i(x):
 
 def _q_learning_dynamics(composition, payoff, temperature):
   r"""An equivalent implementation of `dynamics.boltzmannq`."""
-  return 1 / temperature * dynamics.replicator(composition, payoff) + \
-    composition * _sum_j_x_j_ln_x_j_over_x_i(composition)
+  return 1 / temperature * dynamics.replicator(composition, payoff) + (
+      composition * _sum_j_x_j_ln_x_j_over_x_i(composition))
 
 
-class _InternalTest(unittest.TestCase):
+class _InternalTest(absltest.TestCase):
 
   def test__sum_j_x_j_ln_x_j_over_x_i(self):
     # This tests a sub-function of `_q_learning_dynamics` to ensure its
@@ -67,7 +63,8 @@ class _InternalTest(unittest.TestCase):
     expected_2 = np.asarray([expected_0, expected_1, expected_2])
     np.testing.assert_array_equal(expected, expected_2)
 
-    np.testing.assert_array_equal(expected, _sum_j_x_j_ln_x_j_over_x_i(x))
+    np.testing.assert_array_almost_equal(expected,
+                                         _sum_j_x_j_ln_x_j_over_x_i(x))
 
 
 class DynamicsTest(parameterized.TestCase):
@@ -82,13 +79,11 @@ class DynamicsTest(parameterized.TestCase):
         dynamics.boltzmannq(x, payoff, temperature),
         _q_learning_dynamics(x, payoff, temperature))
 
-  def test_rd_rps_fixed_points(self):
+  def test_rd_rps_pure_fixed_points(self):
     game = pyspiel.load_matrix_game('matrix_rps')
-    payoff_matrix = nfg_to_ndarray(game)
+    payoff_matrix = game_payoffs_array(game)
     rd = dynamics.replicator
     dyn = dynamics.SinglePopulationDynamics(payoff_matrix, rd)
-
-    # pure equilibria
     x = np.eye(3)
     np.testing.assert_allclose(dyn(x[0]), np.zeros((3,)))
     np.testing.assert_allclose(dyn(x[1]), np.zeros((3,)))
@@ -98,14 +93,14 @@ class DynamicsTest(parameterized.TestCase):
                             dynamics.qpg)
   def test_dynamics_rps_mixed_fixed_point(self, func):
     game = pyspiel.load_matrix_game('matrix_rps')
-    payoff_matrix = nfg_to_ndarray(game)
+    payoff_matrix = game_payoffs_array(game)
     dyn = dynamics.SinglePopulationDynamics(payoff_matrix, func)
     x = np.ones(shape=(3,)) / 3.
     np.testing.assert_allclose(dyn(x), np.zeros((3,)), atol=1e-15)
 
   def test_multi_population_rps(self):
     game = pyspiel.load_matrix_game('matrix_rps')
-    payoff_matrix = nfg_to_ndarray(game)
+    payoff_matrix = game_payoffs_array(game)
     rd = dynamics.replicator
     dyn = dynamics.MultiPopulationDynamics(payoff_matrix, [rd] * 2)
     x = np.concatenate([np.ones(k) / float(k) for k in payoff_matrix.shape[1:]])
@@ -143,4 +138,4 @@ class DynamicsTest(parameterized.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

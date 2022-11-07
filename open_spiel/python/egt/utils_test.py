@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,12 +14,8 @@
 
 """Tests for open_spiel.python.egt.utils."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import itertools
-import unittest
+from absl.testing import absltest
 
 from absl.testing import parameterized
 import numpy as np
@@ -156,30 +152,30 @@ class UtilsTest(parameterized.TestCase):
     """Tests if verification of constant-sum game is correct."""
 
     game = pyspiel.load_matrix_game("matrix_rps")
-    payoff_tables = utils.nfg_to_ndarray(game)
+    payoff_tables = utils.game_payoffs_array(game)
     payoffs_are_hpt_format = utils.check_payoffs_are_hpt(payoff_tables)
     game_is_constant_sum, payoff_sum = utils.check_is_constant_sum(
         payoff_tables[0], payoffs_are_hpt_format)
     self.assertTrue(game_is_constant_sum)
     self.assertEqual(payoff_sum, 0.)
 
-  def test_nfg_to_ndarray_rps(self):
-    """Test `nfg_to_ndarray` for rock-paper-scissors."""
+  def test_game_payoffs_array_rps(self):
+    """Test `game_payoffs_array` for rock-paper-scissors."""
     game = pyspiel.load_matrix_game("matrix_rps")
     payoff_matrix = np.empty(shape=(2, 3, 3))
     payoff_row = np.array([[0., -1., 1.], [1., 0., -1.], [-1., 1., 0.]])
     payoff_matrix[0] = payoff_row
     payoff_matrix[1] = -1. * payoff_row
-    np.testing.assert_allclose(utils.nfg_to_ndarray(game), payoff_matrix)
+    np.testing.assert_allclose(utils.game_payoffs_array(game), payoff_matrix)
 
-  def test_nfg_to_ndarray_pd(self):
-    """Test `nfg_to_ndarray` for prisoners' dilemma."""
+  def test_game_payoffs_array_pd(self):
+    """Test `game_payoffs_array` for prisoners' dilemma."""
     game = pyspiel.load_matrix_game("matrix_pd")
     payoff_matrix = np.empty(shape=(2, 2, 2))
     payoff_row = np.array([[5., 0.], [10., 1.]])
     payoff_matrix[0] = payoff_row
     payoff_matrix[1] = payoff_row.T
-    np.testing.assert_allclose(utils.nfg_to_ndarray(game), payoff_matrix)
+    np.testing.assert_allclose(utils.game_payoffs_array(game), payoff_matrix)
 
   @parameterized.parameters(
       (100, 2, 0.),
@@ -196,4 +192,4 @@ class UtilsTest(parameterized.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

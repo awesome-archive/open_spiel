@@ -1,12 +1,16 @@
-# The single source of truth for the OpenSpiel pip dependencies.
-absl-py == 0.7.1
-tensorflow < 1.15.0, >= 1.14.0
-dm-sonnet == 1.32
-IPython == 5.8.0
-tensorflow-probability < 0.8.0, >= 0.7.0
-cvxopt == 1.2.3
-networkx == 2.2
-mock == 3.0.5
-matplotlib == 2.2.2; python_version < '3.0'
-matplotlib == 3.1.1; python_version >= '3.0'
-scipy == 1.1.0
+# The core OpenSpiel pip dependencies.
+#
+# Note that there are optional python packages used by some of the python
+# algorithms or tools in OpenSpiel that are purposelty excluded (e.g.
+# cvxopt, nashpy, matplotlib etc.) This is because we want to keep only
+# the dependencies that are absolutely necessary to use the Python API.
+#
+# However, when testing using continuous integration like GitHub Actions,
+# we install several more packages to ensure the proper tests are
+# included. See open_spiel/scripts/python_extra_deps.sh for the extra
+# packages and their versions we use for testing purposes.
+pip >= 20.0.2
+attrs >= 19.3.0
+absl-py >= 0.10.0
+numpy >= 1.21.5
+scipy >= 1.7.3

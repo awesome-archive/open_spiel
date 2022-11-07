@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,6 +15,8 @@
 #include "open_spiel/games/oware.h"
 
 #include <iomanip>
+
+#include "open_spiel/game_parameters.h"
 
 namespace open_spiel {
 namespace oware {
@@ -32,25 +34,25 @@ const GameType kGameType{
     GameType::RewardModel::kTerminal,
     /*max_num_players=*/2,
     /*min_num_players=*/2,
-    /*provides_information_state=*/false,
-    /*provides_information_state_as_normalized_vector=*/false,
-    /*provides_observation=*/true,
-    /*provides_observation_as_normalized_vector=*/true,
+    /*provides_information_state_string=*/false,
+    /*provides_information_state_tensor=*/false,
+    /*provides_observation_string=*/true,
+    /*provides_observation_tensor=*/true,
     /*parameter_specification=*/
-    {{"num_houses_per_player", {GameParameter::Type::kInt, false}},
-     {"num_seeds_per_house", {GameParameter::Type::kInt, false}}}};
+    {{"num_houses_per_player", GameParameter(kDefaultHousesPerPlayer)},
+     {"num_seeds_per_house", GameParameter(kDdefaultSeedsPerHouse)}}};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new OwareGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new OwareGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
 
 }  // namespace
 
-OwareState::OwareState(int num_houses_per_player, int num_seeds_per_house)
-    : State(/*num_distinct_actions=*/num_houses_per_player,
-            /*num_players=*/kNumPlayers),
+OwareState::OwareState(std::shared_ptr<const Game> game,
+                       int num_houses_per_player, int num_seeds_per_house)
+    : State(game),
       num_houses_per_player_(num_houses_per_player),
       total_seeds_(kNumPlayers * num_seeds_per_house * num_houses_per_player),
       board_(/*num_houses_per_player=*/num_houses_per_player,
@@ -58,9 +60,9 @@ OwareState::OwareState(int num_houses_per_player, int num_seeds_per_house)
   boards_since_last_capture_.insert(board_);
 }
 
-OwareState::OwareState(const OwareBoard& board)
-    : State(/*num_distinct_actions=*/board.seeds.size() / kNumPlayers,
-            /*num_players=*/kNumPlayers),
+OwareState::OwareState(std::shared_ptr<const Game> game,
+                       const OwareBoard& board)
+    : State(game),
       num_houses_per_player_(board.seeds.size() / kNumPlayers),
       total_seeds_(board.TotalSeeds()),
       board_(board) {
@@ -71,8 +73,9 @@ OwareState::OwareState(const OwareBoard& board)
 
 std::vector<Action> OwareState::LegalActions() const {
   std::vector<Action> actions;
-  const int lower = PlayerLowerHouse(board_.current_player);
-  const int upper = PlayerUpperHouse(board_.current_player);
+  if (IsTerminal()) return actions;
+  const Player lower = PlayerLowerHouse(board_.current_player);
+  const Player upper = PlayerUpperHouse(board_.current_player);
   if (OpponentSeeds() == 0) {
     // In case the opponent does not have any seeds, a player must make
     // a move which gives the opponent seeds.
@@ -92,11 +95,12 @@ std::vector<Action> OwareState::LegalActions() const {
   return actions;
 }
 
-std::string OwareState::ActionToString(int player, Action action) const {
-  return std::string(1, (player == 0 ? 'A' : 'a') + action);
+std::string OwareState::ActionToString(Player player, Action action) const {
+  return std::string(1, (player == Player{0} ? 'A' : 'a') + action);
 }
 
-void OwareState::WritePlayerScore(std::ostringstream& out, int player) const {
+void OwareState::WritePlayerScore(std::ostringstream& out,
+                                  Player player) const {
   out << "Player " << player << " score = " << board_.score[player];
   if (CurrentPlayer() == player) {
     out << " [PLAYING]" << std::endl;
@@ -212,7 +216,7 @@ bool OwareState::IsGrandSlam(int house) const {
 
 int OwareState::OpponentSeeds() const {
   int count = 0;
-  const int opponent = 1 - board_.current_player;
+  const Player opponent = 1 - board_.current_player;
   const int lower = PlayerLowerHouse(opponent);
   const int upper = PlayerUpperHouse(opponent);
   for (int house = lower; house <= upper; house++) {
@@ -263,36 +267,39 @@ void OwareState::DoApplyAction(Action action) {
 
 void OwareState::CollectAndTerminate() {
   for (int house = 0; house < NumHouses(); house++) {
-    const int player = house / num_houses_per_player_;
+    const Player player = house / num_houses_per_player_;
     board_.score[player] += board_.seeds[house];
     board_.seeds[house] = 0;
   }
 }
 
-std::string OwareState::Observation(int player) const {
+std::string OwareState::ObservationString(Player player) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
   return board_.ToString();
 }
 
-void OwareState::ObservationAsNormalizedVector(
-    int player, std::vector<double>* values) const {
-  values->resize(/*seeds*/ NumHouses() + /*scores*/ kNumPlayers);
+void OwareState::ObservationTensor(Player player,
+                                   absl::Span<float> values) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
+
+  SPIEL_CHECK_EQ(values.size(), /*seeds*/ NumHouses() + /*scores*/ kNumPlayers);
   for (int house = 0; house < NumHouses(); ++house) {
-    (*values)[house] = ((double)board_.seeds[house]) / total_seeds_;
+    values[house] = ((double)board_.seeds[house]) / total_seeds_;
   }
-  for (int player = 0; player < kNumPlayers; ++player) {
-    (*values)[NumHouses() + player] =
+  for (Player player = 0; player < kNumPlayers; ++player) {
+    values[NumHouses() + player] =
         ((double)board_.score[player]) / total_seeds_;
   }
 }
 
 OwareGame::OwareGame(const GameParameters& params)
     : Game(kGameType, params),
-      num_houses_per_player_(ParameterValue<int>("num_houses_per_player",
-                                                 kDefaultHousesPerPlayer)),
-      num_seeds_per_house_(
-          ParameterValue<int>("num_seeds_per_house", kDdefaultSeedsPerHouse)) {}
+      num_houses_per_player_(ParameterValue<int>("num_houses_per_player")),
+      num_seeds_per_house_(ParameterValue<int>("num_seeds_per_house")) {}
 
-std::vector<int> OwareGame::ObservationNormalizedVectorShape() const {
+std::vector<int> OwareGame::ObservationTensorShape() const {
   return {/*seeds*/ num_houses_per_player_ * kNumPlayers +
           /*scores*/ kNumPlayers};
 }

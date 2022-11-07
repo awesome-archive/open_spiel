@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_BREAKTHROUGH_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_BREAKTHROUGH_H_
+#ifndef OPEN_SPIEL_GAMES_BREAKTHROUGH_H_
+#define OPEN_SPIEL_GAMES_BREAKTHROUGH_H_
 
 #include <array>
 #include <memory>
@@ -33,12 +33,13 @@
 namespace open_spiel {
 namespace breakthrough {
 
-constexpr int kNumPlayers = 2;
-constexpr int kBlackPlayerId = 0;
-constexpr int kWhitePlayerId = 1;
-constexpr int kCellStates = 1 + kNumPlayers;  // player 0, player 1, empty.
-constexpr int kDefaultRows = 8;
-constexpr int kDefaultColumns = 8;
+inline constexpr int kNumPlayers = 2;
+inline constexpr int kBlackPlayerId = 0;
+inline constexpr int kWhitePlayerId = 1;
+inline constexpr int kCellStates =
+    1 + kNumPlayers;  // player 0, player 1, empty.
+inline constexpr int kDefaultRows = 8;
+inline constexpr int kDefaultColumns = 8;
 
 // State of a cell.
 enum class CellState {
@@ -49,17 +50,18 @@ enum class CellState {
 
 class BreakthroughState : public State {
  public:
-  explicit BreakthroughState(int num_distinct_actions, int rows, int cols);
-  int CurrentPlayer() const override;
-  std::string ActionToString(int player, Action action) const override;
+  explicit BreakthroughState(std::shared_ptr<const Game> game, int rows,
+                             int cols);
+  Player CurrentPlayer() const override;
+  std::string ActionToString(Player player, Action action) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
-  std::string InformationState(int player) const override;
-  void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string ObservationString(Player player) const override;
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
-  void UndoAction(int player, Action action) override;
+  void UndoAction(Player player, Action action) override;
 
   bool InBounds(int r, int c) const;
   void SetBoard(int r, int c, CellState cs) { board_[r * cols_ + c] = cs; }
@@ -69,6 +71,7 @@ class BreakthroughState : public State {
   int rows() const { return rows_; }
   int cols() const { return cols_; }
   std::vector<Action> LegalActions() const override;
+  std::string Serialize() const override;
 
  protected:
   void DoApplyAction(Action action) override;
@@ -77,7 +80,7 @@ class BreakthroughState : public State {
   int observation_plane(int r, int c) const;
 
   // Fields sets to bad/invalid values. Use Game::NewInitialState().
-  int cur_player_ = kInvalidPlayer;
+  Player cur_player_ = kInvalidPlayer;
   int winner_ = kInvalidPlayer;
   int total_moves_ = -1;
   std::array<int, 2> pieces_;
@@ -92,16 +95,13 @@ class BreakthroughGame : public Game {
   int NumDistinctActions() const override;
   std::unique_ptr<State> NewInitialState() const override {
     return std::unique_ptr<State>(
-        new BreakthroughState(NumDistinctActions(), rows_, cols_));
+        new BreakthroughState(shared_from_this(), rows_, cols_));
   }
   int NumPlayers() const override { return kNumPlayers; }
   double MinUtility() const override { return -1; }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return 1; }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new BreakthroughGame(*this));
-  }
-  std::vector<int> InformationStateNormalizedVectorShape() const override {
+  std::vector<int> ObservationTensorShape() const override {
     return {kCellStates, rows_, cols_};
   }
 
@@ -113,7 +113,7 @@ class BreakthroughGame : public Game {
   int MaxGameLength() const override {
     return (2 * (2 * rows_ - 3) * cols_) + 1;
   }
-  std::string SerializeState(const State& state) const override;
+
   std::unique_ptr<State> DeserializeState(
       const std::string& str) const override;
 
@@ -138,4 +138,4 @@ inline std::ostream& operator<<(std::ostream& stream, const CellState& state) {
 }  // namespace breakthrough
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_BREAKTHROUGH_H_
+#endif  // OPEN_SPIEL_GAMES_BREAKTHROUGH_H_

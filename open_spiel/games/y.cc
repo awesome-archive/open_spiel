@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,35 +19,35 @@
 #include <utility>
 #include <vector>
 
+#include "open_spiel/game_parameters.h"
+#include "open_spiel/utils/tensor_view.h"
+
 namespace open_spiel {
 namespace y_game {
 namespace {
 
 // Facts about the game.
-const GameType kGameType{
-    /*short_name=*/"y",
-    /*long_name=*/"Y Connection Game",
-    GameType::Dynamics::kSequential,
-    GameType::ChanceMode::kDeterministic,
-    GameType::Information::kPerfectInformation,
-    GameType::Utility::kZeroSum,
-    GameType::RewardModel::kTerminal,
-    /*max_num_players=*/2,
-    /*min_num_players=*/2,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/false,
-    /*provides_observation=*/true,
-    /*provides_observation_as_normalized_vector=*/true,
-    /*parameter_specification=*/
-    {
-        {"board_size",
-         GameType::ParameterSpec{GameParameter::Type::kInt, false}},
-        {"ansi_color_output",
-         GameType::ParameterSpec{GameParameter::Type::kBool, false}},
-    }};
+const GameType kGameType{/*short_name=*/"y",
+                         /*long_name=*/"Y Connection Game",
+                         GameType::Dynamics::kSequential,
+                         GameType::ChanceMode::kDeterministic,
+                         GameType::Information::kPerfectInformation,
+                         GameType::Utility::kZeroSum,
+                         GameType::RewardModel::kTerminal,
+                         /*max_num_players=*/2,
+                         /*min_num_players=*/2,
+                         /*provides_information_state_string=*/true,
+                         /*provides_information_state_tensor=*/false,
+                         /*provides_observation_string=*/true,
+                         /*provides_observation_tensor=*/true,
+                         /*parameter_specification=*/
+                         {
+                             {"board_size", GameParameter(kDefaultBoardSize)},
+                             {"ansi_color_output", GameParameter(false)},
+                         }};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new YGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new YGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -113,8 +113,9 @@ std::string Move::ToString() const {
   return absl::StrCat(std::string(1, static_cast<char>('a' + x)), y + 1);
 }
 
-YState::YState(int board_size, bool ansi_color_output)
-    : State(board_size * board_size, kNumPlayers),
+YState::YState(std::shared_ptr<const Game> game, int board_size,
+               bool ansi_color_output)
+    : State(game),
       board_size_(board_size),
       neighbors(get_neighbors(board_size)),
       ansi_color_output_(ansi_color_output) {
@@ -133,6 +134,7 @@ Move YState::ActionToMove(Action action_id) const {
 std::vector<Action> YState::LegalActions() const {
   // Can move in any empty cell.
   std::vector<Action> moves;
+  if (IsTerminal()) return moves;
   moves.reserve(board_.size() - moves_made_);
   for (int cell = 0; cell < board_.size(); ++cell) {
     if (board_[cell].player == kPlayerNone) {
@@ -142,7 +144,7 @@ std::vector<Action> YState::LegalActions() const {
   return moves;
 }
 
-std::string YState::ActionToString(int player, Action action_id) const {
+std::string YState::ActionToString(Player player, Action action_id) const {
   return ActionToMove(action_id).ToString();
 }
 
@@ -224,26 +226,40 @@ std::vector<double> YState::Returns() const {
   return {0, 0};  // Unfinished
 }
 
-std::string YState::InformationState(int player) const {
+std::string YState::InformationStateString(Player player) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
   return HistoryString();
 }
 
-std::string YState::Observation(int player) const {
+std::string YState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   return ToString();
 }
 
-void YState::ObservationAsNormalizedVector(int player,
-                                           std::vector<double>* values) const {
+int PlayerRelative(YPlayer state, Player current) {
+  switch (state) {
+    case kPlayer1:
+      return current == 0 ? 0 : 1;
+    case kPlayer2:
+      return current == 1 ? 0 : 1;
+    case kPlayerNone:
+      return 2;
+    default:
+      SpielFatalError("Unknown player type.");
+  }
+}
+
+void YState::ObservationTensor(Player player, absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
-  std::fill(values->begin(), values->end(), 0.);
-  values->resize(board_.size() * kCellStates, 0.);
+  TensorView<2> view(values, {kCellStates, static_cast<int>(board_.size())},
+                     true);
   for (int i = 0; i < board_.size(); ++i) {
     if (board_[i].player != kPlayerInvalid) {
-      (*values)[board_.size() * static_cast<int>(board_[i].player) + i] = 1.0;
+      view[{PlayerRelative(board_[i].player, player), i}] = 1.0;
     }
   }
 }
@@ -304,19 +320,14 @@ bool YState::JoinGroups(int cell_a, int cell_b) {
   return false;
 }
 
-void YState::UndoAction(int player, Action move) {
-  SpielFatalError("YState::UndoAction Not Implemented");
-  // TODO: Implement this by replaying the game.
-}
-
 std::unique_ptr<State> YState::Clone() const {
   return std::unique_ptr<State>(new YState(*this));
 }
 
 YGame::YGame(const GameParameters& params)
     : Game(kGameType, params),
-      board_size_(ParameterValue<int>("board_size", kDefaultBoardSize)),
-      ansi_color_output_(ParameterValue<bool>("ansi_color_output", false)) {}
+      board_size_(ParameterValue<int>("board_size")),
+      ansi_color_output_(ParameterValue<bool>("ansi_color_output")) {}
 
 }  // namespace y_game
 }  // namespace open_spiel

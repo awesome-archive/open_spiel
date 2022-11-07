@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,17 +24,27 @@
 //
 // So the maximin sequence is of the form:
 // private card player 0, private card player 1, [bets], public card, [bets]
+//
 // Parameters:
-//     "players"       int    number of players               (default = 2)
+//     "players"           int    number of players          (default = 2)
+//     "action_mapping"    bool   regard all actions as legal and internally
+//                                map otherwise illegal actions to check/call
+//                                                           (default = false)
+//     "suit_isomorphism"  bool   player observations do not distinguish
+//                                between cards of different suits with
+//                                the same rank              (default = false)
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_LEDUC_POKER_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_LEDUC_POKER_H_
+#ifndef OPEN_SPIEL_GAMES_LEDUC_POKER_H_
+#define OPEN_SPIEL_GAMES_LEDUC_POKER_H_
 
 #include <array>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "open_spiel/observer.h"
+#include "open_spiel/policy.h"
 #include "open_spiel/spiel.h"
 
 namespace open_spiel {
@@ -42,37 +52,39 @@ namespace leduc_poker {
 
 // Default parameters.
 
-// TODO: Use absl::optional instead of sentinel values once absl is
-// added as a dependency.
-constexpr int kInvalidCard = -10000;
-constexpr int kDefaultPlayers = 2;
-constexpr int kNumSuits = 2;
-constexpr int kFirstRaiseAmount = 2;
-constexpr int kSecondRaiseAmount = 4;
-constexpr int kTotalRaisesPerRound = 2;
-constexpr int kMaxRaises = 2;
-constexpr int kStartingMoney = 100;
-constexpr int kNumInfoStates = 936;  // Number of info state in the 2P game.
+inline constexpr int kInvalidCard = -10000;
+inline constexpr int kDefaultPlayers = 2;
+inline constexpr int kNumSuits = 2;
+inline constexpr int kFirstRaiseAmount = 2;
+inline constexpr int kSecondRaiseAmount = 4;
+inline constexpr int kTotalRaisesPerRound = 2;
+inline constexpr int kMaxRaises = 2;
+inline constexpr int kStartingMoney = 100;
+
+// Number of info states in the 2P game with default params.
+inline constexpr int kNumInfoStates = 936;
 
 class LeducGame;
+class LeducObserver;
 
 enum ActionType { kFold = 0, kCall = 1, kRaise = 2 };
 
 class LeducState : public State {
  public:
-  explicit LeducState(int num_players, const LeducGame& parent);
+  explicit LeducState(std::shared_ptr<const Game> game,
+                      bool action_mapping, bool suit_isomorphism);
 
-  int CurrentPlayer() const override;
-  std::string ActionToString(int player, Action move) const override;
+  Player CurrentPlayer() const override;
+  std::string ActionToString(Player player, Action move) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
-  std::string InformationState(int player) const override;
-  std::string Observation(int player) const override;
-  void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
-  void ObservationAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string InformationStateString(Player player) const override;
+  std::string ObservationString(Player player) const override;
+  void InformationStateTensor(Player player,
+                              absl::Span<float> values) const override;
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
   // The probability of taking each possible action in a particular info state.
   std::vector<std::pair<Action, double>> ChanceOutcomes() const override;
@@ -82,12 +94,27 @@ class LeducState : public State {
   int deck_size() const { return deck_size_; }
   int public_card() const { return public_card_; }
   int raises() const { return num_raises_; }
-  int private_card(int player) const { return private_cards_[player]; }
+  int private_card(Player player) const { return private_cards_[player]; }
   std::vector<Action> LegalActions() const override;
+
+  // Gets the private cards.
+  std::vector<int> GetPrivateCards() const { return private_cards_; }
+
+  // Sets the private cards to specific ones. Note that this function does not
+  // change the history, so any functions relying on the history will not longer
+  // work properly.
+  void SetPrivateCards(const std::vector<int>& new_private_cards);
 
   // Returns a vector of MaxGameLength containing all of the betting actions
   // taken so far. If the round has ended, the actions are kInvalidAction.
   std::vector<int> padded_betting_sequence() const;
+  std::unique_ptr<State> ResampleFromInfostate(
+      int player_id, std::function<double()> rng) const override;
+
+  std::vector<Action> ActionsConsistentWithInformationFrom(
+      Action action) const override {
+    return {action};
+  }
 
  protected:
   // The meaning of `action_id` varies:
@@ -109,18 +136,21 @@ class LeducState : public State {
   void DoApplyAction(Action move) override;
 
  private:
+  friend class LeducObserver;
+
   int NextPlayer() const;
   void ResolveWinner();
   bool ReadyForNextRound() const;
   void NewRound();
-  int RankHand(int player) const;
+  int RankHand(Player player) const;
   void SequenceAppendMove(int move);
-  void Ante(int player, int amount);
-
-  const LeducGame& parent_game_;
+  void Ante(Player player, int amount);
+  void SetPrivate(Player player, Action move);
+  int NumObservableCards() const;
+  int MaxBetsPerRound() const;
 
   // Fields sets to bad/invalid values. Use Game::NewInitialState().
-  int cur_player_;
+  Player cur_player_;
 
   int num_calls_;    // Number of calls this round (total, not per player).
   int num_raises_;   // Number of raises made in the round (not per player).
@@ -149,6 +179,12 @@ class LeducState : public State {
   // Sequence of actions for each round. Needed to report information state.
   std::vector<int> round1_sequence_;
   std::vector<int> round2_sequence_;
+  // Always regard all actions as legal, and internally map otherwise illegal
+  // actions to check/call.
+  bool action_mapping_;
+  // Players cannot distinguish between cards of different suits with the same
+  // rank.
+  bool suit_isomorphism_;
 };
 
 class LeducGame : public Game {
@@ -157,29 +193,59 @@ class LeducGame : public Game {
 
   int NumDistinctActions() const override { return 3; }
   std::unique_ptr<State> NewInitialState() const override;
-  int MaxChanceOutcomes() const override { return total_cards_; }
+  int MaxChanceOutcomes() const override;
   int NumPlayers() const override { return num_players_; }
   double MinUtility() const override;
   double MaxUtility() const override;
   double UtilitySum() const override { return 0; }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new LeducGame(*this));
+  std::vector<int> InformationStateTensorShape() const override;
+  std::vector<int> ObservationTensorShape() const override;
+  constexpr int MaxBetsPerRound() const {
+    // E.g. longest round for 4-player is 10 bets:
+    //   check, check, check, bet, call, call, raise, call, call, call
+    // = 1 bet + 1 raise + (num_players_-1)*2 calls + (num_players_-2) calls
+    return 3 * num_players_ - 2;
   }
-  std::vector<int> InformationStateNormalizedVectorShape() const override;
-  std::vector<int> ObservationNormalizedVectorShape() const override;
   int MaxGameLength() const override {
-    // 2 rounds. Longest one for e.g. 4-player is, e.g.:
-    //   check, check, check, raise, call, call, raise, call, call, call
-    // = 2 raises + (num_players_-1)*2 calls + (num_players_-2) calls
-    return 2 * (2 + (num_players_ - 1) * 2 + (num_players_ - 2));
+    // 2 rounds.
+    return 2 * MaxBetsPerRound();
   }
+  int MaxChanceNodesInHistory() const override { return 3; }
+  int NumObservableCards() const {
+    return suit_isomorphism_ ? total_cards_ / 2 : total_cards_;
+  }
+
+  std::string ActionToString(Player player, Action action) const override;
+  // New Observation API
+  std::shared_ptr<Observer> MakeObserver(
+      absl::optional<IIGObservationType> iig_obs_type,
+      const GameParameters& params) const override;
+
+  // Used to implement the old observation API.
+  std::shared_ptr<LeducObserver> default_observer_;
+  std::shared_ptr<LeducObserver> info_state_observer_;
 
  private:
   int num_players_;  // Number of players.
   int total_cards_;  // Number of cards total cards in the game.
+  // Always regard all actions as legal, and internally map otherwise illegal
+  // actions to check/call.
+  bool action_mapping_;
+  // Players cannot distinguish between cards of different suits with the same
+  // rank.
+  bool suit_isomorphism_;
 };
+
+// Returns policy that always folds.
+TabularPolicy GetAlwaysFoldPolicy(const Game& game);
+
+// Returns policy that always calls.
+TabularPolicy GetAlwaysCallPolicy(const Game& game);
+
+// Returns policy that always raises.
+TabularPolicy GetAlwaysRaisePolicy(const Game& game);
 
 }  // namespace leduc_poker
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_LEDUC_POKER_H_
+#endif  // OPEN_SPIEL_GAMES_LEDUC_POKER_H_

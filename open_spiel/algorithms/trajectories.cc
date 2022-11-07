@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 
@@ -28,13 +29,13 @@ namespace open_spiel {
 namespace algorithms {
 namespace {
 std::string StateKey(const Game& game, const State& state,
-                     int player = kInvalidPlayer) {
-  if (game.GetType().provides_information_state) {
-    if (player == kInvalidPlayer) return state.InformationState();
-    return state.InformationState(player);
-  } else if (game.GetType().provides_observation) {
-    if (player == kInvalidPlayer) return state.Observation();
-    return state.Observation(player);
+                     Player player = kInvalidPlayer) {
+  if (game.GetType().provides_information_state_string) {
+    if (player == kInvalidPlayer) return state.InformationStateString();
+    return state.InformationStateString(player);
+  } else if (game.GetType().provides_observation_string) {
+    if (player == kInvalidPlayer) return state.ObservationString();
+    return state.ObservationString(player);
   }
   return state.ToString();
 }
@@ -82,14 +83,14 @@ void BatchedTrajectory::ResizeFields(int length) {
   // Only works for batches with at least one trajectory as otherwise we can't
   // infer the field size.
   SPIEL_CHECK_GT(batch_size, 0);
-  // TODO: Replace this with a multi-threaded version.
+  // TODO(author1): Replace this with a multi-threaded version.
   for (int i = 0; i < batch_size; ++i) {
     // Each field has shape [B, T, field_size], where N is a parameter that is
     // fixed for each (game, field) pair. We thus have to get the size of N from
     // the existing vectors.
     if (!observations[0].empty()) {
       observations[i].resize(max_trajectory_length,
-                             std::vector<double>(observations[0][0].size(), 0));
+                             std::vector<float>(observations[0][0].size(), 0));
     }
     state_indices[i].resize(max_trajectory_length, 0);
     legal_actions[i].resize(max_trajectory_length,
@@ -118,7 +119,7 @@ BatchedTrajectory RecordBatchedTrajectory(
   SPIEL_CHECK_GT(batch_size, 0);
   if (state_to_index.empty()) SPIEL_CHECK_TRUE(include_full_observations);
   BatchedTrajectory batched_trajectory(batch_size);
-  // TODO: Replace this with a multi-threaded version.
+  // TODO(author1): Replace this with a multi-threaded version.
   for (int i = 0; i < batch_size; ++i) {
     BatchedTrajectory trajectory =
         RecordTrajectory(game, policies, initial_state, state_to_index,
@@ -142,9 +143,10 @@ BatchedTrajectory RecordTrajectory(
   while (!state->IsTerminal()) {
     Action action = kInvalidAction;
     if (state->IsChanceNode()) {
-      action = open_spiel::SampleChanceOutcome(
-          state->ChanceOutcomes(),
-          std::uniform_real_distribution<double>(0.0, 1.0)(*rng));
+      action = open_spiel::SampleAction(
+                   state->ChanceOutcomes(),
+                   std::uniform_real_distribution<double>(0.0, 1.0)(*rng))
+                   .first;
     } else if (state->IsSimultaneousNode()) {
       open_spiel::SpielFatalError(
           "We do not support games with simultaneous actions.");
@@ -156,21 +158,29 @@ BatchedTrajectory RecordTrajectory(
         SPIEL_CHECK_TRUE(it != state_to_index.end());
         trajectory.state_indices[0].push_back(it->second);
       } else {
-        trajectory.observations[0].push_back(
-            state->InformationStateAsNormalizedVector());
+        trajectory.observations[0].push_back(state->InformationStateTensor());
       }
-      ActionsAndProbs policy = policies.at(state->CurrentPlayer())
-                                   .GetStatePolicy(state->InformationState());
-      SPIEL_CHECK_EQ(policy.size(), game.NumDistinctActions());
-      std::vector<double> probs;
-      probs.reserve(policy.size());
+      ActionsAndProbs policy =
+          policies.at(state->CurrentPlayer())
+              .GetStatePolicy(state->InformationStateString());
+      if (policy.size() > state->LegalActions().size()) {
+        std::string policy_str = "";
+        for (const auto& item : policy) {
+          absl::StrAppend(&policy_str, "(", item.first, ",", item.second, ") ");
+        }
+        SpielFatalError(absl::StrCat(
+            "There are more actions than legal actions from ",
+            typeid(policies.at(state->CurrentPlayer())).name(),
+            "\n Legal actions are: ", absl::StrJoin(state->LegalActions(), " "),
+            " \n Available probabilities were:", policy_str));
+      }
+      std::vector<double> probs(game.NumDistinctActions(), 0.);
       for (const std::pair<Action, double>& pair : policy) {
-        probs.push_back(pair.second);
+        probs[pair.first] = pair.second;
       }
       trajectory.player_policies[0].push_back(probs);
       trajectory.player_ids[0].push_back(state->CurrentPlayer());
-      action = SampleChanceOutcome(
-          policy, std::uniform_real_distribution<double>(0.0, 1.0)(*rng));
+      action = SampleAction(policy, *rng).first;
       trajectory.actions[0].push_back(action);
     }
     SPIEL_CHECK_NE(action, kInvalidAction);

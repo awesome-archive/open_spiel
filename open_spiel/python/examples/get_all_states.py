@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +14,13 @@
 
 """Python spiel example to get all the states in the game."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from absl import app
 from absl import flags
 
+# pylint: disable=unused-import
+from open_spiel.python import games
 from open_spiel.python.algorithms import get_all_states
+from open_spiel.python.mfg import games as mfg_games
 import pyspiel
 
 FLAGS = flags.FLAGS
@@ -36,16 +35,15 @@ flags.DEFINE_bool("include_chance_states", True, "Include chance states?")
 def main(_):
   games_list = pyspiel.registered_games()
   print("Registered games:")
-  print(games_list)
+  for game in games_list:
+    print(" ", game.short_name)
+  print()
 
-  print("Creating game: " + FLAGS.game)
+  print("Creating game:", FLAGS.game)
+  params = {}
   if FLAGS.players is not None:
-    # If passing parameters, must use game creator.
-    game = pyspiel.load_game(FLAGS.game,
-                             {"players": pyspiel.GameParameter(FLAGS.players)})
-  else:
-    # Otherwise can create directly.
-    game = pyspiel.load_game(FLAGS.game)
+    params["players"] = FLAGS.players
+  game = pyspiel.load_game(FLAGS.game, params)
 
   print("Getting all states; depth_limit = {}".format(FLAGS.depth_limit))
   all_states = get_all_states.get_all_states(game, FLAGS.depth_limit,
@@ -54,11 +52,10 @@ def main(_):
 
   count = 0
   for state in all_states:
-    print("")
-    print(str(state))
+    print(state)
     count += 1
 
-  print("")
+  print()
   print("Total: {} states.".format(count))
 
 

@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_BLOTTO_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_BLOTTO_H_
+#ifndef OPEN_SPIEL_GAMES_BLOTTO_H_
+#define OPEN_SPIEL_GAMES_BLOTTO_H_
 
 #include <memory>
 #include <string>
@@ -23,7 +23,7 @@
 #include "open_spiel/normal_form_game.h"
 
 // An implementation of the Blotto: https://en.wikipedia.org/wiki/Blotto_game
-// This version is supports n>2 players. Each player distributes M coins on N
+// This version supports n >= 2 players. Each player distributes M coins on N
 // fields. Each field is won by at most one player: the one with the most
 // coins on the specific field; if there is a draw, the field is considered
 // drawn (not won by any player), and hence ignored in the scoring. The winner
@@ -44,12 +44,12 @@ using ActionMap = std::unordered_map<Action, std::vector<int>>;
 
 class BlottoState : public NFGState {
  public:
-  BlottoState(int num_distinct_actions, int num_players, int coins, int fields,
+  BlottoState(std::shared_ptr<const Game> game, int coins, int fields,
               const ActionMap* action_map,
               const std::vector<Action>* legal_actions_);
 
-  std::vector<Action> LegalActions(int player) const override;
-  std::string ActionToString(int player, Action move_id) const override;
+  std::vector<Action> LegalActions(Player player) const override;
+  std::string ActionToString(Player player, Action move_id) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
@@ -70,31 +70,19 @@ class BlottoState : public NFGState {
 class BlottoGame : public NormalFormGame {
  public:
   explicit BlottoGame(const GameParameters& params);
-  BlottoGame(const BlottoGame& other)
-      : NormalFormGame(other),
-        num_distinct_actions_(other.num_distinct_actions_),
-        coins_(other.coins_),
-        fields_(other.fields_),
-        players_(other.players_),
-        action_map_(
-            std::unique_ptr<ActionMap>(new ActionMap(*other.action_map_))),
-        legal_actions_(std::unique_ptr<std::vector<Action>>(
-            new std::vector<Action>(*other.legal_actions_))) {}
 
   int NumDistinctActions() const override;
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(
-        new BlottoState(NumDistinctActions(), NumPlayers(), coins_, fields_,
-                        action_map_.get(), legal_actions_.get()));
+    return std::unique_ptr<State>(new BlottoState(shared_from_this(), coins_,
+                                                  fields_, action_map_.get(),
+                                                  legal_actions_.get()));
   }
 
   int NumPlayers() const override { return players_; }
   double MinUtility() const override { return -1; }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return +1; }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new BlottoGame(*this));
-  }
+  std::string ActionToString(Player player, Action action) const override;
 
  private:
   void CreateActionMapRec(int* count, int coins_left,
@@ -111,4 +99,4 @@ class BlottoGame : public NormalFormGame {
 }  // namespace blotto
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_BLOTTO_H_
+#endif  // OPEN_SPIEL_GAMES_BLOTTO_H_

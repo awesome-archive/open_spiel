@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "open_spiel/games/matching_pennies_3p.h"
+
+#include <memory>
 
 #include "open_spiel/normal_form_game.h"
 #include "open_spiel/spiel.h"
@@ -25,40 +27,39 @@ constexpr const Action kHeadsActionId = 0;
 constexpr const Action kTailsActionId = 1;
 
 namespace {
-const GameType kGameType{
-    /*short_name=*/"matching_pennies_3p",
-    /*long_name=*/"Three-Player Matching Pennies",
-    GameType::Dynamics::kSimultaneous,
-    GameType::ChanceMode::kDeterministic,
-    GameType::Information::kOneShot,
-    GameType::Utility::kGeneralSum,
-    GameType::RewardModel::kTerminal,
-    /*max_num_players=*/3,
-    /*min_num_players=*/3,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/true,
-    /*provides_observation=*/false,
-    /*provides_observation_as_normalized_vector=*/false,
-    /*parameter_specification=*/{}};
+const GameType kGameType{/*short_name=*/"matching_pennies_3p",
+                         /*long_name=*/"Three-Player Matching Pennies",
+                         GameType::Dynamics::kSimultaneous,
+                         GameType::ChanceMode::kDeterministic,
+                         GameType::Information::kOneShot,
+                         GameType::Utility::kGeneralSum,
+                         GameType::RewardModel::kTerminal,
+                         /*max_num_players=*/3,
+                         /*min_num_players=*/3,
+                         /*provides_information_state_string=*/true,
+                         /*provides_information_state_tensor=*/true,
+                         /*provides_observation_string=*/true,
+                         /*provides_observation_tensor=*/true,
+                         /*parameter_specification=*/{}};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new MatchingPennies3pGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new MatchingPennies3pGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
 }  // namespace
 
-MatchingPennies3pState::MatchingPennies3pState(int num_distinct_actions,
-                                               int num_players)
-    : NFGState(num_distinct_actions, num_players),
-      terminal_(false),
-      returns_({0, 0, 0}) {}
+MatchingPennies3pState::MatchingPennies3pState(std::shared_ptr<const Game> game)
+    : NFGState(game), terminal_(false), returns_({0, 0, 0}) {}
 
-std::vector<Action> MatchingPennies3pState::LegalActions(int player) const {
-  return {kHeadsActionId, kTailsActionId};  // Heads and Tails.
+std::vector<Action> MatchingPennies3pState::LegalActions(Player player) const {
+  if (terminal_)
+    return {};
+  else
+    return {kHeadsActionId, kTailsActionId};
 }
 
-std::string MatchingPennies3pState::ActionToString(int player,
+std::string MatchingPennies3pState::ActionToString(Player player,
                                                    Action move_id) const {
   switch (move_id) {
     case kHeadsActionId:

@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,13 +14,8 @@
 
 """Tests for the heuristic_payoff_table library."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import unittest
-
 from absl import logging
+from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 
@@ -29,7 +24,7 @@ from open_spiel.python.egt import utils
 import pyspiel
 
 
-class ModuleLevelTest(unittest.TestCase):
+class ModuleLevelTest(absltest.TestCase):
 
   def test__multinomial_coefficients(self):
     distributions = np.asarray([
@@ -119,7 +114,7 @@ class PayoffTableTest(parameterized.TestCase):
   @parameterized.parameters(("matrix_rps",))
   def test_from_matrix_game(self, game):
     game = pyspiel.load_matrix_game(game)
-    payoff_tables = utils.nfg_to_ndarray(game)
+    payoff_tables = utils.game_payoffs_array(game)
     logging.info("Testing payoff table construction for matrix game.")
     table = heuristic_payoff_table.from_matrix_game(payoff_tables[0])
     print(table())
@@ -128,7 +123,7 @@ class PayoffTableTest(parameterized.TestCase):
   def test_expected_payoff(self, strategy):
     logging.info("Testing expected payoff for matrix game.")
     game = pyspiel.load_matrix_game("matrix_rps")
-    payoff_tables = utils.nfg_to_ndarray(game)
+    payoff_tables = utils.game_payoffs_array(game)
     table = heuristic_payoff_table.from_matrix_game(payoff_tables[0])
     expected_payoff = table.expected_payoff(strategy)
     print(expected_payoff)
@@ -156,4 +151,4 @@ class PayoffTableTest(parameterized.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

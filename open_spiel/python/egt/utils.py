@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +14,12 @@
 
 """Utils for evolutionary game theoretic analysis of games."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import itertools
 import math
 
 import numpy as np
+
+import pyspiel
 
 
 def n_choose_k(n, k):
@@ -70,30 +68,26 @@ def sample_from_simplex(n, dim=3, vmin=0.):
   return (p[:, 1:] - p[:, 0:-1]) * (1 - 2 * vmin) + vmin
 
 
-def nfg_to_ndarray(game):
-  """Returns a `numpy.ndarray` of utilities for a normal form game.
+def game_payoffs_array(game):
+  """Returns a `numpy.ndarray` of utilities for a game.
+
+  NOTE: if the game is not a MatrixGame or a TensorGame then this may be costly.
 
   Args:
-    game: A normal form game.
+    game: A game.
 
   Returns:
     `numpy.ndarray` of dimension `num_players` + 1.
     First dimension is the player, followed by the actions of all players, e.g.
     a 3x3 game (2 players) has dimension [2,3,3].
   """
-  state = game.new_initial_state()
-  actions = [
-      state.legal_actions(player) for player in range(game.num_players())
-  ]
-  shape = [int(game.num_players())] + [len(arr) for arr in actions]
-  payoff_tensor = np.empty(shape)
-  for joint_action in itertools.product(*actions):
-    state.apply_actions(joint_action)
-    returns = state.returns()
-    # Move first axis (player) to last to ease vector assignment of returns
-    np.moveaxis(payoff_tensor, 0, -1)[joint_action] = returns
-    state = game.new_initial_state()
-  return payoff_tensor
+  if isinstance(game, pyspiel.MatrixGame):
+    return np.stack([game.row_utilities(), game.col_utilities()])
+
+  if not isinstance(game, pyspiel.TensorGame):
+    game = pyspiel.extensive_to_tensor_game(game)
+  return np.stack(
+      [game.player_utilities(player) for player in range(game.num_players())])
 
 
 def distribute(num_items, num_slots, normalize=False):
@@ -254,12 +248,12 @@ def get_strat_profile_labels(payoff_tables, payoffs_are_hpt_format):
   num_populations = len(payoff_tables)
 
   if num_populations == 1:
-    num_strats_per_population =\
-      get_num_strats_per_population(payoff_tables, payoffs_are_hpt_format)
+    num_strats_per_population = get_num_strats_per_population(
+        payoff_tables, payoffs_are_hpt_format)
     labels = [str(x) for x in range(num_strats_per_population[0])]
   else:
-    num_strats_per_population =\
-      get_num_strats_per_population(payoff_tables, payoffs_are_hpt_format)
+    num_strats_per_population = get_num_strats_per_population(
+        payoff_tables, payoffs_are_hpt_format)
     labels = dict()
     label_text = []
     # Construct a list of strategy labels for each population
@@ -355,9 +349,10 @@ def get_id_from_strat_profile(num_strats_per_population, strat_profile):
   if len(strat_profile) == 1:
     return strat_profile[0]
 
-  return strat_profile[-1] + num_strats_per_population[-1]*\
-         get_id_from_strat_profile(num_strats_per_population[:-1],
-                                   strat_profile[:-1])
+  return strat_profile[-1] + (num_strats_per_population[-1] *
+                              get_id_from_strat_profile(
+                                  num_strats_per_population[:-1],
+                                  strat_profile[:-1]))
 
 
 def compute_payoff(row_profile, col_profile, row_payoff_table):
@@ -435,8 +430,8 @@ def print_rankings_table(payoff_tables,
 
   num_populations = len(payoff_tables)
   payoffs_are_hpt_format = check_payoffs_are_hpt(payoff_tables)
-  num_strats_per_population =\
-    get_num_strats_per_population(payoff_tables, payoffs_are_hpt_format)
+  num_strats_per_population = get_num_strats_per_population(
+      payoff_tables, payoffs_are_hpt_format)
 
   # More than total number of strats requested for printing, compute top and
   # use an extra row to indicate additional strategies not shown.
@@ -482,8 +477,7 @@ def print_rankings_table(payoff_tables,
 
 def is_symmetric_matrix_game(payoff_tables):
   """Checks if payoff_tables corresponds to a symmetric matrix game."""
-  payoffs_are_hpt_format =\
-      check_payoffs_are_hpt(payoff_tables)
+  payoffs_are_hpt_format = check_payoffs_are_hpt(payoff_tables)
 
   if len(payoff_tables) == 2:
     if payoffs_are_hpt_format and np.array_equal(payoff_tables[0](),

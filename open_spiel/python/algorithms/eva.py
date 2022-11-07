@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,18 +23,17 @@ Finally, a weighted average between the parametric (DQN in this case) and the
 non-parametric model is used to compute the policy.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import collections
 import copy
 import numpy as np
-import sonnet as snt
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python import rl_agent
+from open_spiel.python import simple_nets
 from open_spiel.python.algorithms import dqn
+
+# Temporarily disable TF2 behavior until we update the code.
+tf.disable_v2_behavior()
 
 MEM_KEY_NAME = "embedding"
 
@@ -45,7 +44,7 @@ ReplayBufferElement = collections.namedtuple(
     "is_final_step legal_actions_mask")
 
 
-# TODO Refactor into data structures lib.
+# TODO(author3) Refactor into data structures lib.
 class QueryableFixedSizeRingBuffer(dqn.ReplayBuffer):
   """ReplayBuffer of fixed size with a FIFO replacement policy.
 
@@ -98,14 +97,14 @@ class EVAAgent(object):
                num_neighbours=5,
                learning_rate=1e-4,
                mixing_parameter=0.9,
-               memory_capacity=1e6,
+               memory_capacity=int(1e6),
                discount_factor=1.0,
                update_target_network_every=1000,
                epsilon_start=1.0,
                epsilon_end=0.1,
                epsilon_decay_duration=int(1e4),
                embedding_as_parametric_input=False):
-    """Initialize the Ephemeral Value Adtustment algorithm.
+    """Initialize the Ephemeral VAlue Adjustment algorithm.
 
     Args:
       session: (tf.Session) TensorFlow session.
@@ -154,9 +153,14 @@ class EVAAgent(object):
         shape=[None, self._info_state_size],
         dtype=tf.float32,
         name="info_state_ph")
-    self._embedding_network = snt.nets.MLP(
-        list(embedding_network_layers) + [embedding_size])
+    self._embedding_network = simple_nets.MLP(self._info_state_size,
+                                              list(embedding_network_layers),
+                                              embedding_size)
     self._embedding = self._embedding_network(self._info_state_ph)
+
+    # The DQN agent requires this be an integer.
+    if not isinstance(memory_capacity, int):
+      raise ValueError("Memory capacity not an integer.")
 
     # Initialize the parametric & non-parametric Q-networks.
     self._agent = dqn.DQN(
@@ -274,7 +278,7 @@ class EVAAgent(object):
 
       # Take a step with the parametric model and get q-values. Use embedding as
       # input to the parametric meodel.
-      # TODO Recompute embeddings for buffers on learning steps.
+      # TODO(author6) Recompute embeddings for buffers on learning steps.
       if self._embedding_as_parametric_input:
         last_time_step_copy = copy.deepcopy(self._last_time_step)
         last_time_step_copy.observations["info_state"][
@@ -324,7 +328,7 @@ class EVAAgent(object):
     Args:
       trajectories: Current OpenSpiel game state.
     """
-    # Calculate non-parametric values over the trajectoies.
+    # Calculate non-parametric values over the trajectories.
     # Iterate backward through trajectories
     for t in range(len(trajectories) - 1, 0, -1):
       elem = trajectories[t][1]
@@ -400,12 +404,11 @@ class EVAAgent(object):
 
   def action_probabilities(self, state):
     """Returns action probabilites dict for a single batch."""
-    # TODO: Refactor this to expect pre-normalized form.
-    if hasattr(state, "information_state_as_normalized_vector"):
-      state_rep = tuple(
-          state.information_state_as_normalized_vector(self.player_id))
-    elif hasattr(state, "observation_as_normalized_vector"):
-      state_rep = tuple(state.observation_as_normalized_vector(self.player_id))
+    # TODO(author3, author6): Refactor this to expect pre-normalized form.
+    if hasattr(state, "information_state_tensor"):
+      state_rep = tuple(state.information_state_tensor(self.player_id))
+    elif hasattr(state, "observation_tensor"):
+      state_rep = tuple(state.observation_tensor(self.player_id))
     else:
       raise AttributeError("Unable to extract normalized state vector.")
     legal_actions = state.legal_actions(self.player_id)

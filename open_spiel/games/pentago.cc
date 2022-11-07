@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,33 +19,33 @@
 #include <utility>
 #include <vector>
 
+#include "open_spiel/utils/tensor_view.h"
+
 namespace open_spiel {
 namespace pentago {
 namespace {
 
 // Facts about the game.
-const GameType kGameType{
-    /*short_name=*/"pentago",
-    /*long_name=*/"Pentago",
-    GameType::Dynamics::kSequential,
-    GameType::ChanceMode::kDeterministic,
-    GameType::Information::kPerfectInformation,
-    GameType::Utility::kZeroSum,
-    GameType::RewardModel::kTerminal,
-    /*max_num_players=*/2,
-    /*min_num_players=*/2,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/false,
-    /*provides_observation=*/true,
-    /*provides_observation_as_normalized_vector=*/true,
-    /*parameter_specification=*/
-    {
-        {"ansi_color_output",
-         GameType::ParameterSpec{GameParameter::Type::kBool, false}},
-    }};
+const GameType kGameType{/*short_name=*/"pentago",
+                         /*long_name=*/"Pentago",
+                         GameType::Dynamics::kSequential,
+                         GameType::ChanceMode::kDeterministic,
+                         GameType::Information::kPerfectInformation,
+                         GameType::Utility::kZeroSum,
+                         GameType::RewardModel::kTerminal,
+                         /*max_num_players=*/2,
+                         /*min_num_players=*/2,
+                         /*provides_information_state_string=*/true,
+                         /*provides_information_state_tensor=*/false,
+                         /*provides_observation_string=*/true,
+                         /*provides_observation_tensor=*/true,
+                         /*parameter_specification=*/
+                         {
+                             {"ansi_color_output", GameParameter(false)},
+                         }};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new PentagoGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new PentagoGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -68,13 +68,25 @@ struct Move {
              (a / (kPossibleRotations * kBoardSize)) % kBoardSize,
              a % kPossibleRotations) {}
 
-  Action ToAction() { return ((y * kBoardSize) + x) * kPossibleRotations + r; }
+  Action ToAction() const {
+    return ((y * kBoardSize) + x) * kPossibleRotations + r;
+  }
+
+  std::string ToString() const {
+    return absl::StrCat(std::string(1, static_cast<char>('a' + x)),
+                        std::string(1, static_cast<char>('1' + y)),
+                        std::string(1, static_cast<char>('s' + r)));
+  }
 };
 
 // Order the bits such that quadrant rotations are easy.
 constexpr int xy_to_bit[kBoardPositions] = {
-    0,  1,  2,  15, 16, 9,  7,  8,  3,  14, 17, 10, 6,  5,  4,  13, 12, 11,
-    29, 30, 31, 22, 23, 24, 28, 35, 32, 21, 26, 25, 27, 34, 33, 20, 19, 18,
+    0,  1,  2,  15, 16, 9,  // Comment
+    7,  8,  3,  14, 17, 10,  // to force
+    6,  5,  4,  13, 12, 11,  // clang-format
+    29, 30, 31, 22, 23, 24,  // to keep the
+    28, 35, 32, 21, 26, 25,  // square spatial
+    27, 34, 33, 20, 19, 18,  // alignment.
 };
 
 // The bit mask for reading from an xy location.
@@ -91,9 +103,11 @@ constexpr uint64_t xy_bit_mask[kBoardPositions] = {
 
 // Helpers for creating the win mask.
 constexpr uint64_t pattern(int x, int y, int ox, int oy) {
-  return (xym(x + ox * 0, y + oy * 0) | xym(x + ox * 1, y + oy * 1) |
-          xym(x + ox * 2, y + oy * 2) | xym(x + ox * 3, y + oy * 3) |
-          xym(x + ox * 4, y + oy * 4));
+  return (xym(x + ox * 0, y + oy * 0) |  // Comment
+          xym(x + ox * 1, y + oy * 1) |  // to force
+          xym(x + ox * 2, y + oy * 2) |  // clang-format
+          xym(x + ox * 3, y + oy * 3) |  // to keep
+          xym(x + ox * 4, y + oy * 4));  // aligntment.
 }
 constexpr uint64_t horizontal(int x, int y) { return pattern(x, y, 1, 0); }
 constexpr uint64_t vertical(int x, int y) { return pattern(x, y, 0, 1); }
@@ -102,18 +116,22 @@ constexpr uint64_t bl_tr(int x, int y) { return pattern(x, y, 1, -1); }
 
 // The mask of 5 bits for each of the win conditions.
 constexpr uint64_t win_mask[kPossibleWinConditions] = {
-    horizontal(0, 0), horizontal(1, 0), horizontal(0, 1),
-    horizontal(1, 1), horizontal(0, 2), horizontal(1, 2),
-    horizontal(0, 3), horizontal(1, 3), horizontal(0, 4),
-    horizontal(1, 4), horizontal(0, 5), horizontal(1, 5),
-    vertical(0, 0),   vertical(0, 1),   vertical(1, 0),
-    vertical(1, 1),   vertical(2, 0),   vertical(2, 1),
-    vertical(3, 0),   vertical(3, 1),   vertical(4, 0),
-    vertical(4, 1),   vertical(5, 0),   vertical(5, 1),
-    tl_br(0, 0),      tl_br(1, 1),  // Diagonal from top-left to bottom-right.
-    tl_br(0, 1),      tl_br(1, 0),      bl_tr(0, 5),
-    bl_tr(1, 4),  // Diagonal from bottom-left to top-right.
-    bl_tr(0, 4),      bl_tr(1, 5),
+    horizontal(0, 0), horizontal(1, 0),  // Row 0
+    horizontal(0, 1), horizontal(1, 1),  // Row 1
+    horizontal(0, 2), horizontal(1, 2),  // Row 2
+    horizontal(0, 3), horizontal(1, 3),  // Row 3
+    horizontal(0, 4), horizontal(1, 4),  // Row 4
+    horizontal(0, 5), horizontal(1, 5),  // Row 5
+    vertical(0, 0), vertical(0, 1),  // Column 0
+    vertical(1, 0), vertical(1, 1),  // Column 1
+    vertical(2, 0), vertical(2, 1),  // Column 2
+    vertical(3, 0), vertical(3, 1),  // Column 3
+    vertical(4, 0), vertical(4, 1),  // Column 4
+    vertical(5, 0), vertical(5, 1),  // Column 5
+    tl_br(0, 0), tl_br(1, 1),  // Center diagonals from top-left to bottom-right
+    tl_br(0, 1), tl_br(1, 0),  // Offset diagonals
+    bl_tr(0, 5), bl_tr(1, 4),  // Center diagonals from bottom-left to top-right
+    bl_tr(0, 4), bl_tr(1, 5),  // Offset diagonals
 };
 
 // Rotate a quadrant clockwise or counter-clockwise.
@@ -129,9 +147,9 @@ uint64_t rotate_quadrant_ccw(uint64_t b, int quadrant) {
 
 }  // namespace
 
-PentagoState::PentagoState(bool ansi_color_output)
-    : State(kPossibleActions, kNumPlayers),
-      ansi_color_output_(ansi_color_output) {
+PentagoState::PentagoState(std::shared_ptr<const Game> game,
+                           bool ansi_color_output)
+    : State(std::move(game)), ansi_color_output_(ansi_color_output) {
   board_[0] = 0;
   board_[1] = 0;
 }
@@ -139,6 +157,7 @@ PentagoState::PentagoState(bool ansi_color_output)
 std::vector<Action> PentagoState::LegalActions() const {
   // Can move in any empty cell, and do all rotations.
   std::vector<Action> moves;
+  if (IsTerminal()) return moves;
   moves.reserve((kBoardPositions - moves_made_) * kPossibleRotations);
   for (int y = 0; y < kBoardSize; y++) {
     for (int x = 0; x < kBoardSize; x++) {
@@ -152,11 +171,9 @@ std::vector<Action> PentagoState::LegalActions() const {
   return moves;
 }
 
-std::string PentagoState::ActionToString(int player, Action action_id) const {
-  Move m(action_id);
-  return absl::StrCat(std::string(1, static_cast<char>('a' + m.x)),
-                      std::string(1, static_cast<char>('1' + m.y)),
-                      std::string(1, static_cast<char>('s' + m.r)));
+std::string PentagoState::ActionToString(Player player,
+                                         Action action_id) const {
+  return Move(action_id).ToString();
 }
 
 std::string PentagoState::ToString() const {
@@ -210,7 +227,7 @@ std::string PentagoState::ToString() const {
   return out.str();
 }
 
-Player PentagoState::get(int i) const {
+PentagoPlayer PentagoState::get(int i) const {
   return (board_[0] & xy_bit_mask[i]
               ? kPlayer1
               : board_[1] & xy_bit_mask[i] ? kPlayer2 : kPlayerNone);
@@ -223,25 +240,39 @@ std::vector<double> PentagoState::Returns() const {
   return {0, 0};  // Unfinished
 }
 
-std::string PentagoState::InformationState(int player) const {
+std::string PentagoState::InformationStateString(Player player) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
   return HistoryString();
 }
 
-std::string PentagoState::Observation(int player) const {
+std::string PentagoState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   return ToString();
 }
 
-void PentagoState::ObservationAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+int PlayerRelative(PentagoPlayer state, Player current) {
+  switch (state) {
+    case kPlayer1:
+      return current == 0 ? 0 : 1;
+    case kPlayer2:
+      return current == 1 ? 0 : 1;
+    case kPlayerNone:
+      return 2;
+    default:
+      SpielFatalError("Unknown player type.");
+  }
+}
+
+void PentagoState::ObservationTensor(Player player,
+                                     absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
-  std::fill(values->begin(), values->end(), 0.);
-  values->resize(kBoardPositions * kCellStates, 0.);
+  TensorView<2> view(values, {kCellStates, kBoardPositions}, true);
   for (int i = 0; i < kBoardPositions; i++) {
-    (*values)[kBoardPositions * static_cast<int>(get(i)) + i] = 1.0;
+    view[{PlayerRelative(get(i), player), i}] = 1.0;
   }
 }
 
@@ -285,18 +316,13 @@ void PentagoState::DoApplyAction(Action action) {
   current_player_ = (current_player_ == kPlayer1 ? kPlayer2 : kPlayer1);
 }
 
-void PentagoState::UndoAction(int player, Action move) {
-  SpielFatalError("PentagoState::UndoAction Not Implemented");
-  // TODO: Undo the placement and rotation.
-}
-
 std::unique_ptr<State> PentagoState::Clone() const {
   return std::unique_ptr<State>(new PentagoState(*this));
 }
 
 PentagoGame::PentagoGame(const GameParameters& params)
     : Game(kGameType, params),
-      ansi_color_output_(ParameterValue<bool>("ansi_color_output", false)) {}
+      ansi_color_output_(ParameterValue<bool>("ansi_color_output")) {}
 
 }  // namespace pentago
 }  // namespace open_spiel

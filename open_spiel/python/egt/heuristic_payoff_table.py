@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,15 +14,10 @@
 
 """An object to store the heuristic payoff table for a game."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import abc
 import collections
 
 import numpy as np
-import six
 
 from open_spiel.python.egt import utils
 
@@ -149,9 +144,9 @@ def from_matrix_game(matrix_game):
   if not isinstance(matrix_game, np.ndarray):
     raise ValueError("The matrix game should be a numpy array, not a {}".format(
         type(matrix_game)))
-  num_strats_per_population =\
-    utils.get_num_strats_per_population(payoff_tables=[matrix_game],
-                                        payoffs_are_hpt_format=False)
+  num_strats_per_population = (
+      utils.get_num_strats_per_population(
+          payoff_tables=[matrix_game], payoffs_are_hpt_format=False))
   assert len(num_strats_per_population) == 2
   assert num_strats_per_population[0] == num_strats_per_population[1]
   num_strategies = num_strats_per_population[0]
@@ -259,8 +254,7 @@ def from_elo_scores(elo_ratings, num_agents=2):
   return NumpyPayoffTable(np.vstack(hpt_rows))
 
 
-@six.add_metaclass(abc.ABCMeta)
-class _PayoffTableInterface(object):
+class _PayoffTableInterface(metaclass=abc.ABCMeta):
   """An interface for the PayoffTable classes."""
 
   @abc.abstractmethod
@@ -316,7 +310,10 @@ class _PayoffTableInterface(object):
     if not all([p >= 0 for p in strategy]):
       raise ValueError("The strategy probabilities should all be >= 0.")
 
-    distributions = self._distributions
+    distributions = self._distributions.astype(int)
+    if not np.all(np.isclose(self._distributions, distributions, 1e-10)):
+      raise ValueError("Conversion to integers for distributions failed.")
+
     # Multinomial coefficients (one per distribution).
     coefficients = _multinomial_coefficients(distributions)
     # Probabilities of sampling each distribution given population composition.

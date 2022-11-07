@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "open_spiel/spiel.h"
+#include "open_spiel/spiel_globals.h"
 
 namespace open_spiel {
 
@@ -39,13 +40,15 @@ const GameType kGameType{
     GameType::RewardModel::kRewards,
     /*max_num_players=*/100,
     /*min_num_players=*/1,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/true,
-    /*provides_observation=*/true,
-    /*provides_observation_as_normalized_vector=*/true,
-    {{"game", {GameParameter::Type::kGame, true}}}};
+    /*provides_information_state_string=*/true,
+    /*provides_information_state_tensor=*/true,
+    /*provides_observation_string=*/true,
+    /*provides_observation_tensor=*/true,
+    {{"game",
+      GameParameter(GameParameter::Type::kGame, /*is_mandatory=*/true)}},
+    /*default_loadable=*/false};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
   return ConvertToTurnBased(*LoadGame(params.at("game").game_value()));
 }
 
@@ -53,15 +56,15 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 }  // namespace
 
 TurnBasedSimultaneousState::TurnBasedSimultaneousState(
-    int num_distinct_actions, int num_players, std::unique_ptr<State> state)
-    : State(num_distinct_actions, num_players),
+    std::shared_ptr<const Game> game, std::unique_ptr<State> state)
+    : State(game),
       state_(std::move(state)),
-      rollout_mode_(false) {
+      action_vector_(game->NumPlayers()),
+      rollout_mode_(kNoRollout) {
   DetermineWhoseTurn();
-  action_vector_.resize(num_players);
 }
 
-int TurnBasedSimultaneousState::CurrentPlayer() const {
+Player TurnBasedSimultaneousState::CurrentPlayer() const {
   return current_player_;
 }
 
@@ -69,12 +72,16 @@ void TurnBasedSimultaneousState::DetermineWhoseTurn() {
   if (state_->CurrentPlayer() == kSimultaneousPlayerId) {
     // When the underlying game's node is at a simultaneous move node, they get
     // rolled out as turn-based, starting with player 0.
-    current_player_ = 0;
-    rollout_mode_ = true;
+    current_player_ = -1;
+    rollout_mode_ = kStartRollout;
+    RolloutModeIncrementCurrentPlayer();
+    // If the rollout mode is used, then at least one player should have a valid
+    // action.
+    SPIEL_CHECK_LT(current_player_, num_players_);
   } else {
     // Otherwise, just execute it normally.
     current_player_ = state_->CurrentPlayer();
-    rollout_mode_ = false;
+    rollout_mode_ = kNoRollout;
   }
 }
 
@@ -99,6 +106,7 @@ void TurnBasedSimultaneousState::DoApplyAction(Action action_id) {
     if (rollout_mode_) {
       // If we are currently rolling out a simultaneous move node, then simply
       // buffer the action in the action vector.
+      rollout_mode_ = kMidRollout;
       action_vector_[current_player_] = action_id;
       RolloutModeIncrementCurrentPlayer();
       // Check if we then need to apply it.
@@ -123,7 +131,7 @@ std::vector<Action> TurnBasedSimultaneousState::LegalActions() const {
   return state_->LegalActions(CurrentPlayer());
 }
 
-std::string TurnBasedSimultaneousState::ActionToString(int player,
+std::string TurnBasedSimultaneousState::ActionToString(Player player,
                                                        Action action_id) const {
   return state_->ActionToString(player, action_id);
 }
@@ -132,7 +140,7 @@ std::string TurnBasedSimultaneousState::ToString() const {
   std::string partial_action = "";
   if (rollout_mode_) {
     partial_action = "Partial joint action: ";
-    for (int p = 0; p < current_player_; ++p) {
+    for (auto p = Player{0}; p < current_player_; ++p) {
       absl::StrAppend(&partial_action, action_vector_[p]);
       partial_action.push_back(' ');
     }
@@ -149,7 +157,13 @@ std::vector<double> TurnBasedSimultaneousState::Returns() const {
   return state_->Returns();
 }
 
-std::string TurnBasedSimultaneousState::InformationState(int player) const {
+std::vector<double> TurnBasedSimultaneousState::Rewards() const {
+  return rollout_mode_ == kMidRollout ? std::vector<double>(num_players_, 0)
+                                      : state_->Rewards();
+}
+
+std::string TurnBasedSimultaneousState::InformationStateString(
+    Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
@@ -165,36 +179,69 @@ std::string TurnBasedSimultaneousState::InformationState(int player) const {
       extra_info.push_back('\n');
     }
   }
-  return extra_info + state_->InformationState(player);
+  return extra_info + state_->InformationStateString(player);
 }
 
-void TurnBasedSimultaneousState::InformationStateAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+void TurnBasedSimultaneousState::InformationStateTensor(
+    Player player, absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
-  values->clear();
+  SPIEL_CHECK_EQ(values.size(), game_->InformationStateTensorSize());
+  auto value_it = values.begin();
 
   // First, get the 2 * num_players bits to encode whose turn it is and who
   // the observer is.
-  for (int p = 0; p < num_players_; ++p) {
-    values->push_back(p == current_player_ ? 1 : 0);
+  for (auto p = Player{0}; p < num_players_; ++p) {
+    *value_it++ = (p == current_player_ ? 1 : 0);
   }
-  for (int p = 0; p < num_players_; ++p) {
-    values->push_back(p == player ? 1 : 0);
+  for (auto p = Player{0}; p < num_players_; ++p) {
+    *value_it++ = (p == player ? 1 : 0);
   }
 
-  // Then get the underlying info set at
-  std::vector<double> infoset;
-  state_->InformationStateAsNormalizedVector(player, &infoset);
+  // Then get the underlying observation
+  state_->InformationStateTensor(player,
+                                 absl::MakeSpan(value_it, values.end()));
+}
 
-  int offset = values->size();
-  values->resize(values->size() + infoset.size());
+std::string TurnBasedSimultaneousState::ObservationString(Player player) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
 
-  // Now copy it over.
-  for (int i = 0; i < infoset.size(); i++) {
-    (*values)[offset + i] = infoset[i];
+  std::string extra_info = "";
+  extra_info = "Current player: ";
+  absl::StrAppend(&extra_info, current_player_);
+  extra_info.push_back('\n');
+  if (rollout_mode_) {
+    // Include the player's action if they have take one already.
+    if (player < current_player_) {
+      absl::StrAppend(&extra_info, "Observer's action this turn: ");
+      absl::StrAppend(&extra_info, action_vector_[player]);
+      extra_info.push_back('\n');
+    }
   }
+  return extra_info + state_->ObservationString(player);
+}
+
+void TurnBasedSimultaneousState::ObservationTensor(
+    Player player, absl::Span<float> values) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
+
+  SPIEL_CHECK_EQ(values.size(), game_->ObservationTensorSize());
+  auto value_it = values.begin();
+
+  // First, get the 2 * num_players bits to encode whose turn it is and who
+  // the observer is.
+  for (auto p = Player{0}; p < num_players_; ++p) {
+    *value_it++ = (p == current_player_ ? 1 : 0);
+  }
+  for (auto p = Player{0}; p < num_players_; ++p) {
+    *value_it++ = (p == player ? 1 : 0);
+  }
+
+  // Then get the underlying observation
+  state_->ObservationTensor(player, absl::MakeSpan(value_it, values.end()));
 }
 
 TurnBasedSimultaneousState::TurnBasedSimultaneousState(
@@ -226,24 +273,35 @@ GameParameters ConvertParams(const GameType& type, GameParameters params) {
 }
 }  // namespace
 
-TurnBasedSimultaneousGame::TurnBasedSimultaneousGame(std::unique_ptr<Game> game)
+TurnBasedSimultaneousGame::TurnBasedSimultaneousGame(
+    std::shared_ptr<const Game> game)
     : Game(ConvertType(game->GetType()),
            ConvertParams(game->GetType(), game->GetParameters())),
-      game_(std::move(game)) {}
+      game_(game) {}
 
-std::unique_ptr<Game> ConvertToTurnBased(const Game& game) {
+std::shared_ptr<const Game> ConvertToTurnBased(const Game& game) {
   SPIEL_CHECK_EQ(game.GetType().dynamics, GameType::Dynamics::kSimultaneous);
-  return std::unique_ptr<TurnBasedSimultaneousGame>(
-      new TurnBasedSimultaneousGame(game.Clone()));
+  return std::shared_ptr<const TurnBasedSimultaneousGame>(
+      new TurnBasedSimultaneousGame(game.shared_from_this()));
 }
 
-std::unique_ptr<Game> LoadGameAsTurnBased(const std::string& name) {
-  return ConvertToTurnBased(*LoadGame(name));
+std::shared_ptr<const Game> LoadGameAsTurnBased(const std::string& name) {
+  auto game = LoadGame(name);
+  if (game->GetType().dynamics == GameType::Dynamics::kSimultaneous) {
+    return ConvertToTurnBased(*game);
+  } else {
+    return game;
+  }
 }
 
-std::unique_ptr<Game> LoadGameAsTurnBased(const std::string& name,
-                                          const GameParameters& params) {
-  return ConvertToTurnBased(*LoadGame(name, params));
+std::shared_ptr<const Game> LoadGameAsTurnBased(const std::string& name,
+                                                const GameParameters& params) {
+  auto game = LoadGame(name, params);
+  if (game->GetType().dynamics == GameType::Dynamics::kSimultaneous) {
+    return ConvertToTurnBased(*game);
+  } else {
+    return game;
+  }
 }
 
 }  // namespace open_spiel

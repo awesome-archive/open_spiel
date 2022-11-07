@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,7 +34,7 @@ std::unordered_map<std::string, int> GetStatesToIndices(const Game& game) {
     std::unique_ptr<State> state = std::move(to_visit.back());
     to_visit.pop_back();
     if (!state->IsChanceNode() && !state->IsTerminal()) {
-      state_index[state->InformationState()] = index;
+      state_index[state->InformationStateString()] = index;
     }
     ++index;
     for (Action action : state->LegalActions()) {
@@ -45,7 +45,7 @@ std::unordered_map<std::string, int> GetStatesToIndices(const Game& game) {
 }
 
 void RecordTrajectoryEveryFieldHasSameLength(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::unordered_map<std::string, int> states_to_indices =
       GetStatesToIndices(*game);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
@@ -64,7 +64,7 @@ void RecordTrajectoryEveryFieldHasSameLength(const std::string& game_name) {
 }
 
 void RecordTrajectoryLegalActionsIsCorrect(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::unordered_map<std::string, int> states_to_indices =
       GetStatesToIndices(*game);
@@ -84,7 +84,7 @@ void RecordTrajectoryLegalActionsIsCorrect(const std::string& game_name) {
 }
 
 void RecordTrajectoryNextIsTerminalIsCorrect(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::mt19937 rng;
   std::unordered_map<std::string, int> states_to_indices =
@@ -101,7 +101,7 @@ void RecordTrajectoryNextIsTerminalIsCorrect(const std::string& game_name) {
 }
 
 void RecordTrajectoryPlayerIdsIsCorrect(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::mt19937 rng;
   std::unordered_map<std::string, int> states_to_indices =
@@ -122,7 +122,7 @@ void RecordTrajectoryPlayerIdsIsCorrect(const std::string& game_name) {
 
 void RecordBatchedTrajectoryEveryFieldHasSameLength(
     const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::unordered_map<std::string, int> states_to_indices =
       GetStatesToIndices(*game);
@@ -140,7 +140,7 @@ void RecordBatchedTrajectoryEveryFieldHasSameLength(
 
 void RecordBatchedTrajectoryLegalActionsIsCorrect(
     const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::unordered_map<std::string, int> states_to_indices =
       GetStatesToIndices(*game);
@@ -166,7 +166,7 @@ void RecordBatchedTrajectoryLegalActionsIsCorrect(
 
 void RecordBatchedTrajectoryNextIsTerminalIsCorrect(
     const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::unordered_map<std::string, int> states_to_indices =
       GetStatesToIndices(*game);
@@ -188,7 +188,7 @@ void RecordBatchedTrajectoryNextIsTerminalIsCorrect(
 }
 
 void RecordBatchedTrajectoryPlayerIdsIsCorrect(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::unordered_map<std::string, int> states_to_indices =
       GetStatesToIndices(*game);
@@ -211,7 +211,7 @@ void RecordBatchedTrajectoryPlayerIdsIsCorrect(const std::string& game_name) {
 }
 
 void BatchedTrajectoryResizesCorrectly(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   const std::vector<TabularPolicy> policies(2, GetUniformPolicy(*game));
   std::unordered_map<std::string, int> states_to_indices =
       GetStatesToIndices(*game);

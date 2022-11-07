@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "open_spiel/game_parameters.h"
+#include "open_spiel/utils/tensor_view.h"
 
 namespace open_spiel {
 namespace breakthrough {
@@ -37,26 +40,25 @@ constexpr std::array<int, kNumDirections> kDirColOffsets = {
     {-1, 0, 1, -1, 0, 1}};
 
 // Facts about the game
-const GameType kGameType{
-    /*short_name=*/"breakthrough",
-    /*long_name=*/"Breakthrough",
-    GameType::Dynamics::kSequential,
-    GameType::ChanceMode::kDeterministic,
-    GameType::Information::kPerfectInformation,
-    GameType::Utility::kZeroSum,
-    GameType::RewardModel::kTerminal,
-    /*max_num_players=*/2,
-    /*min_num_players=*/2,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/true,
-    /*provides_observation=*/false,
-    /*provides_observation_as_normalized_vector=*/false,
-    /*parameter_specification=*/
-    {{"rows", {GameParameter::Type::kInt, false}},
-     {"columns", {GameParameter::Type::kInt, false}}}};
+const GameType kGameType{/*short_name=*/"breakthrough",
+                         /*long_name=*/"Breakthrough",
+                         GameType::Dynamics::kSequential,
+                         GameType::ChanceMode::kDeterministic,
+                         GameType::Information::kPerfectInformation,
+                         GameType::Utility::kZeroSum,
+                         GameType::RewardModel::kTerminal,
+                         /*max_num_players=*/2,
+                         /*min_num_players=*/2,
+                         /*provides_information_state_string=*/false,
+                         /*provides_information_state_tensor=*/false,
+                         /*provides_observation_string=*/true,
+                         /*provides_observation_tensor=*/true,
+                         /*parameter_specification=*/
+                         {{"rows", GameParameter(kDefaultRows)},
+                          {"columns", GameParameter(kDefaultColumns)}}};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new BreakthroughGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new BreakthroughGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -72,7 +74,7 @@ int StateToPlayer(CellState state) {
   }
 }
 
-CellState PlayerToState(int player) {
+CellState PlayerToState(Player player) {
   switch (player) {
     case 0:
       return CellState::kBlack;
@@ -114,9 +116,9 @@ std::string ColLabel(int col) {
 
 }  // namespace
 
-BreakthroughState::BreakthroughState(int num_distinct_actions, int rows,
+BreakthroughState::BreakthroughState(std::shared_ptr<const Game> game, int rows,
                                      int cols)
-    : State(num_distinct_actions, kNumPlayers), rows_(rows), cols_(cols) {
+    : State(game), rows_(rows), cols_(cols) {
   SPIEL_CHECK_GT(rows_, 1);
   SPIEL_CHECK_GT(cols_, 1);
 
@@ -148,8 +150,8 @@ int BreakthroughState::CurrentPlayer() const {
 }
 
 void BreakthroughState::DoApplyAction(Action action) {
-  std::vector<int> values(4, -1);
-  UnrankActionMixedBase(action, {rows_, cols_, kNumDirections, 2}, &values);
+  std::vector<int> values =
+      UnrankActionMixedBase(action, {rows_, cols_, kNumDirections, 2});
   int r1 = values[0];
   int c1 = values[1];
   int dir = values[2];
@@ -189,9 +191,10 @@ void BreakthroughState::DoApplyAction(Action action) {
   total_moves_++;
 }
 
-std::string BreakthroughState::ActionToString(int player, Action action) const {
-  std::vector<int> values(4, -1);
-  UnrankActionMixedBase(action, {rows_, cols_, kNumDirections, 2}, &values);
+std::string BreakthroughState::ActionToString(Player player,
+                                              Action action) const {
+  std::vector<int> values =
+      UnrankActionMixedBase(action, {rows_, cols_, kNumDirections, 2});
   int r1 = values[0];
   int c1 = values[1];
   int dir = values[2];
@@ -213,7 +216,8 @@ std::string BreakthroughState::ActionToString(int player, Action action) const {
 
 std::vector<Action> BreakthroughState::LegalActions() const {
   std::vector<Action> movelist;
-  const int player = CurrentPlayer();
+  if (IsTerminal()) return movelist;
+  const Player player = CurrentPlayer();
   CellState mystate = PlayerToState(player);
   std::vector<int> action_bases = {rows_, cols_, kNumDirections, 2};
   std::vector<int> action_values = {0, 0, 0, 0};
@@ -313,33 +317,31 @@ std::vector<double> BreakthroughState::Returns() const {
   }
 }
 
-std::string BreakthroughState::InformationState(int player) const {
+std::string BreakthroughState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   return ToString();
 }
 
-void BreakthroughState::InformationStateAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+void BreakthroughState::ObservationTensor(Player player,
+                                          absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
-  values->resize(rows_ * cols_ * kCellStates);
-  std::fill(values->begin(), values->end(), 0);
-  int plane_size = rows_ * cols_;
+  TensorView<3> view(values, {kCellStates, rows_, cols_}, true);
 
   for (int r = 0; r < rows_; r++) {
     for (int c = 0; c < cols_; c++) {
       int plane = observation_plane(r, c);
       SPIEL_CHECK_TRUE(plane >= 0 && plane < kCellStates);
-      (*values)[plane * plane_size + r * cols_ + c] = 1.0;
+      view[{plane, r, c}] = 1.0;
     }
   }
 }
 
-void BreakthroughState::UndoAction(int player, Action action) {
-  std::vector<int> values(4, -1);
-  UnrankActionMixedBase(action, {rows_, cols_, kNumDirections, 2}, &values);
+void BreakthroughState::UndoAction(Player player, Action action) {
+  std::vector<int> values =
+      UnrankActionMixedBase(action, {rows_, cols_, kNumDirections, 2});
   int r1 = values[0];
   int c1 = values[1];
   int dir = values[2];
@@ -359,16 +361,17 @@ void BreakthroughState::UndoAction(int player, Action action) {
   SetBoard(r2, c2, CellState::kEmpty);
   if (capture) {
     if (board(r1, c1) == CellState::kWhite) {
+      // It was a white move: put back the black piece.
       SetBoard(r2, c2, CellState::kBlack);
-      // If the piece being captured is white, decrement the white piece count.
-      pieces_[1]++;
+      pieces_[kBlackPlayerId]++;
     } else if (board(r1, c1) == CellState::kBlack) {
+      // It was a black move: put back the white piece.
       SetBoard(r2, c2, CellState::kWhite);
-      // Otherwise, decrement the black piece count.
-      pieces_[0]++;
+      pieces_[kWhitePlayerId]++;
     }
   }
   history_.pop_back();
+  --move_number_;
 }
 
 std::unique_ptr<State> BreakthroughState::Clone() const {
@@ -377,20 +380,18 @@ std::unique_ptr<State> BreakthroughState::Clone() const {
 
 BreakthroughGame::BreakthroughGame(const GameParameters& params)
     : Game(kGameType, params),
-      rows_(ParameterValue<int>("rows", kDefaultRows)),
-      cols_(ParameterValue<int>("columns", kDefaultColumns)) {}
+      rows_(ParameterValue<int>("rows")),
+      cols_(ParameterValue<int>("columns")) {}
 
 int BreakthroughGame::NumDistinctActions() const {
   return rows_ * cols_ * kNumDirections * 2;
 }
 
-std::string BreakthroughGame::SerializeState(const State& state) const {
+std::string BreakthroughState::Serialize() const {
   std::string str = "";
-  auto bstate = dynamic_cast<const BreakthroughState*>(&state);
-  SPIEL_CHECK_TRUE(bstate != nullptr);
   for (int r = 0; r < rows_; r++) {
     for (int c = 0; c < cols_; c++) {
-      absl::StrAppend(&str, CellToString(bstate->board(r, c)));
+      absl::StrAppend(&str, CellToString(board(r, c)));
     }
   }
   return str;

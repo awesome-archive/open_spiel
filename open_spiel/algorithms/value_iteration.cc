@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -60,7 +60,7 @@ void InitializeMaps(const map<std::string, state_pointer>& states,
     if (kv.second->IsTerminal()) {
       // For both 1-player and 2-player zero sum games, suffices to look at
       // player 0's utility
-      (*values)[key] = kv.second->PlayerReturn(0);
+      (*values)[key] = kv.second->PlayerReturn(Player{0});
     } else {
       (*values)[key] = 0;
       AddTransition(transitions, key, kv.second);
@@ -81,8 +81,15 @@ std::map<std::string, double> ValueIteration(const Game& game, int depth_limit,
     SPIEL_CHECK_EQ(game.GetType().utility, GameType::Utility::kZeroSum);
   }
 
+  // No support for simultaneous games (needs an LP solver). And so also must
+  // be a perfect information game.
+  SPIEL_CHECK_EQ(game.GetType().dynamics, GameType::Dynamics::kSequential);
+  SPIEL_CHECK_EQ(game.GetType().information,
+                 GameType::Information::kPerfectInformation);
+
   auto states = GetAllStates(game, depth_limit, /*include_terminals=*/true,
-                             /*include_chance_states=*/false);
+                             /*include_chance_states=*/false,
+                             /*stop_at_duplicates*/true);
   std::map<std::string, double> values;
   std::map<state_action, std::vector<state_prob>> transitions;
 
@@ -90,6 +97,7 @@ std::map<std::string, double> ValueIteration(const Game& game, int depth_limit,
 
   double error;
   double min_utility = game.MinUtility();
+  double max_utility = game.MaxUtility();
   do {
     error = 0;
     for (const auto& kv : states) {
@@ -102,8 +110,7 @@ std::map<std::string, double> ValueIteration(const Game& game, int depth_limit,
       // Initialize value to be the minimum utility if current player
       // is the maximizing player (i.e. player 0), and to maximum utility
       // if current player is the minimizing player (i.e. player 1).
-      double value = min_utility;
-      if (player == 1) value = -value;
+      double value = (player == Player{0}) ? min_utility : max_utility;
       for (auto action : kv.second->LegalActions()) {
         auto possibilities = transitions[std::make_pair(key, action)];
         double q_value = 0;
@@ -112,7 +119,7 @@ std::map<std::string, double> ValueIteration(const Game& game, int depth_limit,
         }
         // Player 0 is maximizing the value (which is w.r.t. player 0)
         // Player 1 is minimizing the value
-        if (player == 0)
+        if (player == Player{0})
           value = std::max(value, q_value);
         else
           value = std::min(value, q_value);

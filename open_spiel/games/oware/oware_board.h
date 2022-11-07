@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,24 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_OWARE_OWARE_BOARD_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_OWARE_OWARE_BOARD_H_
+#ifndef OPEN_SPIEL_GAMES_OWARE_OWARE_BOARD_H_
+#define OPEN_SPIEL_GAMES_OWARE_OWARE_BOARD_H_
 
 #include <string>
 #include <vector>
 
+#include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 namespace open_spiel {
 namespace oware {
 
-constexpr int kNumPlayers = 2;
+inline constexpr int kNumPlayers = 2;
 
 // Simple Oware board struct storing the current player, scores and seeds.
 struct OwareBoard {
  public:
   OwareBoard(int num_houses_per_player, int num_seeds_per_house);
   // Custom board setup to support testing.
-  OwareBoard(int current_player, const std::vector<int>& score,
+  OwareBoard(Player current_player, const std::vector<int>& score,
              const std::vector<int>& seeds);
   OwareBoard(const OwareBoard&) = default;
   OwareBoard& operator=(const OwareBoard&) = default;
@@ -42,7 +43,7 @@ struct OwareBoard {
   // captured and the ones still in play.
   int TotalSeeds() const;
 
-  int current_player;
+  Player current_player;
   // The number of seeds each player has in their score house, one entry
   // for each player.
   std::vector<int> score;
@@ -57,4 +58,4 @@ std::ostream& operator<<(std::ostream& os, const OwareBoard& board);
 }  // namespace oware
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_OWARE_OWARE_BOARD_H_
+#endif  // OPEN_SPIEL_GAMES_OWARE_OWARE_BOARD_H_

@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,7 +22,6 @@ namespace coin_game {
 
 void BasicCoinGameTests() {
   testing::LoadGameTest("coin_game");
-  testing::NoChanceOutcomesTest(*LoadGame("coin_game"));
   testing::RandomSimTest(*LoadGame("coin_game"), 10);
   testing::RandomSimTest(
       *LoadGame("coin_game",
@@ -39,7 +38,7 @@ void BasicCoinGameTests() {
 
 void GetAllStatesTest() {
   // Getting all states (on a small game) can find corner case bugs.
-  const std::unique_ptr<Game> game =
+  const std::shared_ptr<const Game> game =
       LoadGame("coin_game", {{"players", GameParameter(2)},
                              {"rows", GameParameter(2)},
                              {"columns", GameParameter(3)},

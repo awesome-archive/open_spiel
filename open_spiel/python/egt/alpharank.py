@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,10 +22,6 @@ All equations and variable names correspond to the following paper:
   https://arxiv.org/abs/1903.01373
 
 """
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import numpy as np
 import scipy.linalg as la
@@ -106,12 +102,12 @@ def _get_singlepop_2player_fitness(payoff_table, payoffs_are_hpt_format, m,
   if use_local_selection_model:
     fitness = payoff_table[tuple([my_strat, opponent_strat])]
   else:
-    fitness = (my_popsize-1)/(m-1)*\
-                _get_payoff(payoff_table, payoffs_are_hpt_format,
-                            strat_profile=[my_strat, my_strat], k=0) +\
-              (m-my_popsize)/(m-1)*\
-                _get_payoff(payoff_table, payoffs_are_hpt_format,
-                            strat_profile=[my_strat, opponent_strat], k=0)
+    fitness = ((my_popsize-1)/(m-1)*
+               _get_payoff(payoff_table, payoffs_are_hpt_format,
+                           strat_profile=[my_strat, my_strat], k=0) +
+               (m-my_popsize)/(m-1)*
+               _get_payoff(payoff_table, payoffs_are_hpt_format,
+                           strat_profile=[my_strat, opponent_strat], k=0))
   return fitness
 
 
@@ -282,8 +278,8 @@ def _get_singlepop_transition_matrix(payoff_table,
     Markov transition matrix.
   """
 
-  num_strats_per_population =\
-    utils.get_num_strats_per_population([payoff_table], payoffs_are_hpt_format)
+  num_strats_per_population = utils.get_num_strats_per_population(
+      [payoff_table], payoffs_are_hpt_format)
   num_strats = num_strats_per_population[0]
 
   c = np.zeros((num_strats, num_strats))
@@ -331,8 +327,8 @@ def _get_multipop_transition_matrix(payoff_tables,
                                     inf_alpha_eps=0.1):
   """Gets Markov transition matrix for multipopulation games."""
 
-  num_strats_per_population =\
-    utils.get_num_strats_per_population(payoff_tables, payoffs_are_hpt_format)
+  num_strats_per_population = utils.get_num_strats_per_population(
+      payoff_tables, payoffs_are_hpt_format)
   num_profiles = utils.get_num_profiles(num_strats_per_population)
 
   eta = 1. / (np.sum(num_strats_per_population - 1))
@@ -429,6 +425,137 @@ def print_results(payoff_tables,
     print('\nStationary distribution (pi):\n', pi)
 
 
+def sweep_pi_vs_epsilon(payoff_tables,
+                        strat_labels=None,
+                        warm_start_epsilon=None,
+                        visualize=False,
+                        return_epsilon=False,
+                        min_iters=10,
+                        max_iters=100,
+                        min_epsilon=1e-14,
+                        num_strats_to_label=10,
+                        legend_sort_clusters=False):
+  """Computes infinite-alpha distribution for a range of perturbations.
+
+  The range of response graph perturbations is defined in epsilon_list.
+
+  Note that min_iters and max_iters is necessary as it may sometimes appear the
+  stationary distribution has converged for a game in the first few iterations,
+  where in reality a sufficiently smaller epsilon is needed for the distribution
+  to first diverge, then reconverge. This behavior is dependent on both the
+  payoff structure and bounds, so the parameters min_iters and max_iters can be
+  used to fine-tune this.
+
+  Args:
+    payoff_tables: List of game payoff tables, one for each agent identity.
+      Each payoff_table may be either a numpy array, or a
+      _PayoffTableInterface object.
+    strat_labels: Human-readable strategy labels. See get_strat_profile_labels()
+      in utils.py for formatting details.
+    warm_start_epsilon: Initial value of epsilon to use.
+    visualize: Plot the sweep results.
+    return_epsilon: Whether to return the final epsilon used.
+    min_iters: the minimum number of sweep iterations.
+    max_iters: the maximum number of sweep iterations.
+    min_epsilon: the minimum value of epsilon to be tested, at which point the
+      sweep terminates (if not converged already).
+    num_strats_to_label: Number of strats to label in legend
+    legend_sort_clusters: If true, strategies in the same cluster are sorted in
+      the legend according to orderings for earlier alpha values. Primarily for
+      visualization purposes! Rankings for lower alpha values should be
+      interpreted carefully.
+
+  Returns:
+   pi: AlphaRank stationary distribution.
+   epsilon: The AlphaRank transition matrix noise level resulting from sweep.
+  """
+  payoffs_are_hpt_format = utils.check_payoffs_are_hpt(payoff_tables)
+  num_populations = len(payoff_tables)
+  num_strats_per_population = utils.get_num_strats_per_population(
+      payoff_tables, payoffs_are_hpt_format)
+
+  if num_populations == 1:
+    num_profiles = num_strats_per_population[0]
+  else:
+    num_profiles = utils.get_num_profiles(num_strats_per_population)
+
+  assert (strat_labels is None or isinstance(strat_labels, dict)
+          or (len(strat_labels) == num_profiles))
+
+  pi_list = np.empty((num_profiles, 0))
+  pi, alpha, m = None, None, None  # Unused in infinite-alpha regime
+  epsilon_list = []
+  epsilon_pi_hist = {}
+  num_iters = 0
+
+  epsilon_mult_factor = 0.5
+  alpharank_succeeded_once = False
+
+  if warm_start_epsilon is not None:
+    epsilon = warm_start_epsilon
+  else:
+    epsilon = 0.5
+
+  while True:
+    try:
+      pi_prev = pi
+      _, _, pi, _, _ = compute(payoff_tables, m=m, alpha=alpha,
+                               use_inf_alpha=True, inf_alpha_eps=epsilon)
+      epsilon_pi_hist[epsilon] = pi
+      # Stop when pi converges
+      if num_iters > min_iters and np.allclose(pi, pi_prev):
+        break
+
+      epsilon *= epsilon_mult_factor
+      num_iters += 1
+      alpharank_succeeded_once = True
+      assert num_iters < max_iters, ('Alpharank stationary distr. not found'
+                                     'after {} iterations of pi_vs_epsilon'
+                                     'sweep'.format(num_iters))
+
+    except ValueError as _:
+      print('Error: ', _, epsilon, min_epsilon)
+      # Case where epsilon has been decreased beyond desirable limits but no
+      # distribution found.
+      assert epsilon >= min_epsilon, ('AlphaRank stationary distr. not found &'
+                                      'epsilon < min_epsilon.')
+      # Case where epsilon >= min_epsilon, but still small enough that it causes
+      # causes exceptions due to precision issues. So increase it.
+      epsilon /= epsilon_mult_factor
+
+      # Case where alpharank_succeeded_once (i.e., epsilon_list and pi_list have
+      # at least one entry), and a) has not converged yet and b) failed on this
+      # instance due to epsilon being too small. I.e., the rate of decreasing
+      # of epsilon is too high.
+      if alpharank_succeeded_once:
+        epsilon_mult_factor = (epsilon_mult_factor+1.)/2.
+        epsilon *= epsilon_mult_factor
+
+  epsilon_list, pi_list = zip(*[(epsilon, epsilon_pi_hist[epsilon])
+                                for epsilon in sorted(epsilon_pi_hist.keys(),
+                                                      reverse=True)])
+  pi_list = np.asarray(pi_list)
+
+  if visualize:
+    if strat_labels is None:
+      strat_labels = utils.get_strat_profile_labels(payoff_tables,
+                                                    payoffs_are_hpt_format)
+    alpharank_visualizer.plot_pi_vs_alpha(
+        pi_list.T,
+        epsilon_list,
+        num_populations,
+        num_strats_per_population,
+        strat_labels,
+        num_strats_to_label=num_strats_to_label,
+        legend_sort_clusters=legend_sort_clusters,
+        xlabel=r'Infinite-AlphaRank Noise $\epsilon$')
+
+  if return_epsilon:
+    return pi_list[-1], epsilon_list[-1]
+  else:
+    return pi_list[-1]
+
+
 def sweep_pi_vs_alpha(payoff_tables,
                       strat_labels=None,
                       warm_start_alpha=None,
@@ -436,7 +563,9 @@ def sweep_pi_vs_alpha(payoff_tables,
                       return_alpha=False,
                       m=50,
                       rtol=1e-5,
-                      atol=1e-8):
+                      atol=1e-8,
+                      num_strats_to_label=10,
+                      legend_sort_clusters=False):
   """Computes stationary distribution, pi, for range of selection intensities.
 
   The range of selection intensities is defined in alpha_list and corresponds
@@ -454,6 +583,11 @@ def sweep_pi_vs_alpha(payoff_tables,
     m: AlphaRank population size.
     rtol: The relative tolerance parameter for np.allclose calls.
     atol: The absolute tolerance parameter for np.allclose calls.
+    num_strats_to_label: Number of strats to label in legend
+    legend_sort_clusters: If true, strategies in the same cluster are sorted in
+      the legend according to orderings for earlier alpha values. Primarily for
+      visualization purposes! Rankings for lower alpha values should be
+      interpreted carefully.
 
   Returns:
    pi: AlphaRank stationary distribution.
@@ -462,16 +596,16 @@ def sweep_pi_vs_alpha(payoff_tables,
 
   payoffs_are_hpt_format = utils.check_payoffs_are_hpt(payoff_tables)
   num_populations = len(payoff_tables)
-  num_strats_per_population =\
-    utils.get_num_strats_per_population(payoff_tables, payoffs_are_hpt_format)
+  num_strats_per_population = utils.get_num_strats_per_population(
+      payoff_tables, payoffs_are_hpt_format)
 
   if num_populations == 1:
     num_profiles = num_strats_per_population[0]
   else:
     num_profiles = utils.get_num_profiles(num_strats_per_population)
 
-  assert strat_labels is None or isinstance(strat_labels, dict)\
-      or (len(strat_labels) == num_profiles)
+  assert (strat_labels is None or isinstance(strat_labels, dict)
+          or (len(strat_labels) == num_profiles))
 
   pi_list = np.empty((num_profiles, 0))
   alpha_list = []
@@ -522,7 +656,8 @@ def sweep_pi_vs_alpha(payoff_tables,
         num_populations,
         num_strats_per_population,
         strat_labels,
-        num_strats_to_label=10)
+        num_strats_to_label=num_strats_to_label,
+        legend_sort_clusters=legend_sort_clusters)
 
   if return_alpha:
     return pi, alpha
@@ -600,8 +735,8 @@ def compute(payoff_tables,
 
   num_populations = len(payoff_tables)
 
-  num_strats_per_population =\
-    utils.get_num_strats_per_population(payoff_tables, payoffs_are_hpt_format)
+  num_strats_per_population = utils.get_num_strats_per_population(
+      payoff_tables, payoffs_are_hpt_format)
 
   # Handles the trivial case of Markov chain with one state
   if np.array_equal(num_strats_per_population,
@@ -652,3 +787,59 @@ def compute(payoff_tables,
     print_results(payoff_tables, payoffs_are_hpt_format, rhos, rho_m, c, pi)
 
   return rhos, rho_m, pi, num_profiles, num_strats_per_population
+
+
+def suggest_alpha(payoff_tables, tol=.1):
+  """Suggests an alpha for use in alpha-rank.
+
+  The suggested alpha is approximately the smallest possible alpha such that
+  the ranking has 'settled out'. It is calculated as
+  -ln(tol)/min_gap_between_payoffs.
+
+  The logic behind this settling out is that the fixation probabilities can be
+  expanded as a series, and the relative size of each term in this series
+  changes with alpha. As alpha gets larger and larger, one of the terms in
+  this series comes to dominate, and this causes the ranking to settle
+  down. Just how fast this domination happens is easy to calculate, and this
+  function uses it to estimate the alpha by which the ranking has settled.
+
+  You can find further discussion at the PR:
+
+  https://github.com/deepmind/open_spiel/pull/403
+
+  Args:
+    payoff_tables: List of game payoff tables, one for each agent identity. Each
+      payoff_table may be either a numpy array, or a _PayoffTableInterface
+      object.
+    tol: the desired gap between the first and second terms in the fixation
+      probability expansion. A smaller tolerance leads to a larger alpha, and
+      a 'more settled out' ranking.
+
+  Returns:
+    A suggested alpha.
+  """
+  payoffs_are_hpt_format = utils.check_payoffs_are_hpt(payoff_tables)
+
+  num_strats_per_population = utils.get_num_strats_per_population(
+      payoff_tables, payoffs_are_hpt_format)
+  num_profiles = utils.get_num_profiles(num_strats_per_population)
+
+  gap = np.inf
+  for id_row_profile in range(num_profiles):
+    row_profile = utils.get_strat_profile_from_id(num_strats_per_population,
+                                                  id_row_profile)
+
+    next_profile_gen = utils.get_valid_next_profiles(num_strats_per_population,
+                                                     row_profile)
+
+    for index_population_that_changed, col_profile in next_profile_gen:
+      payoff_table_k = payoff_tables[index_population_that_changed]
+      f_r = _get_payoff(payoff_table_k, payoffs_are_hpt_format, col_profile,
+                        index_population_that_changed)
+      f_s = _get_payoff(payoff_table_k, payoffs_are_hpt_format, row_profile,
+                        index_population_that_changed)
+      if f_r > f_s:
+        gap = min(gap, f_r - f_s)
+
+  return -np.log(tol)/gap
+

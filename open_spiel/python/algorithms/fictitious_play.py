@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Lint as python3
 """Implementations of classical fictitious play.
 
 See https://en.wikipedia.org/wiki/Fictitious_play.
 """
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import itertools
 
@@ -46,7 +43,7 @@ def _callable_tabular_policy(tabular_policy):
   """
 
   def wrap(state):
-    infostate_key = state.information_state(state.current_player())
+    infostate_key = state.information_state_string(state.current_player())
     assert infostate_key in tabular_policy
     ap_list = []
     for action in state.legal_actions():
@@ -57,22 +54,22 @@ def _callable_tabular_policy(tabular_policy):
   return wrap
 
 
-def _joint_policy(policies):
-  """Turns a table of callables (indexed by player) into a single callable.
+class JointPolicy(policy.Policy):
+  """A policy for all players in the game."""
 
-  Args:
-    policies: A dictionary mapping player number to a function `state` -> list
-      of (action, prob).
+  def __init__(self, game, policies):
+    """Initializes a joint policy from a table of callables.
 
-  Returns:
-    A function `state` -> list of (action, prob)
-  """
+    Args:
+       game: The game being played.
+       policies: A dictionary mapping player number to a function `state` ->
+         list of (action, prob).
+    """
+    super().__init__(game, list(range(game.num_players())))
+    self.policies = policies
 
-  def wrap(state):
-    player = state.current_player()
-    return policies[player](state)
-
-  return wrap
+  def action_probabilities(self, state, player_id=None):
+    return dict(self.policies[player_id or state.current_player()](state))
 
 
 def _full_best_response_policy(br_infoset_dict):
@@ -87,7 +84,7 @@ def _full_best_response_policy(br_infoset_dict):
   """
 
   def wrap(state):
-    infostate_key = state.information_state(state.current_player())
+    infostate_key = state.information_state_string(state.current_player())
     br_action = br_infoset_dict[infostate_key]
     ap_list = []
     for action in state.legal_actions():
@@ -129,9 +126,9 @@ class XFPSolver(object):
     Arguments:
       game: the open_spiel game object.
       save_oracles: a boolean, indicating whether or not to save all the BR
-        policies along the way (including the initial unifom policy). This could
-        take up some space, and is only used when generating the meta-game for
-        analysis.
+        policies along the way (including the initial uniform policy). This
+        could take up some space, and is only used when generating the meta-game
+        for analysis.
     """
 
     self._game = game
@@ -161,26 +158,23 @@ class XFPSolver(object):
     """
     return self._average_policy_tables
 
-  def average_policy_callable(self):
-    """Returns a function of state -> list of (action, prob).
-
-    This is a joint policy (policy for all players).
-    """
-    return _joint_policy(self._policies)
+  def average_policy(self):
+    """Returns the current average joint policy (policy for all players)."""
+    return JointPolicy(self._game, self._policies)
 
   def iteration(self):
     self._iterations += 1
-    self.compute_best_reponses()
+    self.compute_best_responses()
     self.update_average_policies()
 
-  def compute_best_reponses(self):
+  def compute_best_responses(self):
     """Updates self._oracles to hold best responses for each player."""
     for i in range(self._num_players):
       # Compute a best response policy to pi_{-i}.
       # First, construct pi_{-i}.
-      joint_policy = _joint_policy(self._policies)
-      br_info = exploitability.best_response(
-          self._game, policy.PolicyFromCallable(self._game, joint_policy), i)
+      joint_policy = self.average_policy()
+      br_info = exploitability.best_response(self._game,
+                                             joint_policy.to_tabular(), i)
       full_br_policy = _full_best_response_policy(
           br_info["best_response_action"])
       self._best_responses[i] = full_br_policy
@@ -216,7 +210,7 @@ class XFPSolver(object):
       avg_policy = _policy_dict_at_state(self._policies[player], state)
       br_policy = _policy_dict_at_state(self._best_responses[player], state)
       legal_actions = state.legal_actions()
-      infostate_key = state.information_state(player)
+      infostate_key = state.information_state_string(player)
       # First traverse the subtrees.
       for action in legal_actions:
         assert action in br_policy

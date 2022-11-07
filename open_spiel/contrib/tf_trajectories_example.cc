@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,13 +22,13 @@ namespace algorithms {
 namespace {
 
 void SimpleTFTrajectoryExample(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   TFBatchTrajectoryRecorder recorder(*game, "/tmp/graph.pb", 1024);
   recorder.Record();
 }
 
 void DoubleRecordTFTrajectoryExample(const std::string& game_name) {
-  std::unique_ptr<Game> game = LoadGame(game_name);
+  std::shared_ptr<const Game> game = LoadGame(game_name);
   TFBatchTrajectoryRecorder recorder(*game, "/tmp/graph.pb", 1024);
   recorder.Record();
   recorder.Record();

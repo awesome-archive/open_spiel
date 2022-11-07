@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,15 +14,12 @@
 
 """Python spiel example."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import random
 from absl import app
 from absl import flags
 import numpy as np
 
+from open_spiel.python import games  # pylint: disable=unused-import
 import pyspiel
 
 FLAGS = flags.FLAGS
@@ -42,8 +39,7 @@ def main(_):
 
   print("Creating game: " + FLAGS.game)
   if FLAGS.players is not None:
-    game = pyspiel.load_game(FLAGS.game,
-                             {"players": pyspiel.GameParameter(FLAGS.players)})
+    game = pyspiel.load_game(FLAGS.game, {"players": FLAGS.players})
   else:
     game = pyspiel.load_game(FLAGS.game)
 
@@ -81,9 +77,10 @@ def main(_):
 
     elif state.is_simultaneous_node():
       # Simultaneous node: sample actions for all players.
+      random_choice = lambda a: np.random.choice(a) if a else [0]
       chosen_actions = [
-          random.choice(state.legal_actions(pid))
-          for pid in xrange(game.num_players())
+          random_choice(state.legal_actions(pid))
+          for pid in range(game.num_players())
       ]
       print("Chosen actions: ", [
           state.action_to_string(pid, action)

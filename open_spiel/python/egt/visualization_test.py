@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,8 +14,8 @@
 
 """Tests for open_spiel.python.egt.visualization."""
 
-import unittest
 from absl import logging
+from absl.testing import absltest
 
 # pylint: disable=g-import-not-at-top
 try:
@@ -28,7 +28,7 @@ except ImportError as e:
                "and there is a workaround (run sudo apt install "
                "python-backports.functools-lru-cache. See: "
                "https://github.com/matplotlib/matplotlib/issues/9344.")
-  raise ImportError(str(e))
+  raise e
 
 import numpy as np
 
@@ -41,14 +41,14 @@ import pyspiel
 def _build_dynamics2x2():
   """Build multi-population dynamics."""
   game = pyspiel.load_game("matrix_pd")
-  payoff_tensor = utils.nfg_to_ndarray(game)
+  payoff_tensor = utils.game_payoffs_array(game)
   return dynamics.MultiPopulationDynamics(payoff_tensor, dynamics.replicator)
 
 
 def _build_dynamics3x3():
   """Build single-population dynamics."""
   game = pyspiel.load_game("matrix_rps")
-  payoff_tensor = utils.nfg_to_ndarray(game)
+  payoff_tensor = utils.game_payoffs_array(game)
   return dynamics.SinglePopulationDynamics(payoff_tensor, dynamics.replicator)
 
 
@@ -57,7 +57,7 @@ def _identity_dynamics(x):
   return x
 
 
-class VisualizationTest(unittest.TestCase):
+class VisualizationTest(absltest.TestCase):
 
   def test_meshgrid(self):
     n = 10
@@ -108,4 +108,4 @@ class VisualizationTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

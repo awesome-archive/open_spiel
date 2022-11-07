@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,13 +14,8 @@
 
 """Catch reinforcement learning environment."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import collections
 import numpy as np
-import six
 
 from open_spiel.python import rl_environment
 
@@ -97,7 +92,7 @@ class Environment(object):
 
     if isinstance(actions, list):
       action = actions[0]
-    elif isinstance(actions, six.integer_types):
+    elif isinstance(actions, int):
       action = actions
     else:
       raise ValueError("Action not supported.", actions)
@@ -150,9 +145,9 @@ class Environment(object):
         step_type=step_type)
 
   def _get_observation(self):
-    board = np.zeros((2, self._height, self._width), dtype=np.float32)
-    board[0, self._ball_pos.y, self._ball_pos.x] = 1.0
-    board[1, self._paddle_pos.y, self._paddle_pos.x] = 1.0
+    board = np.zeros((self._height, self._width), dtype=np.float32)
+    board[self._ball_pos.y, self._ball_pos.x] = 1.0
+    board[self._paddle_pos.y, self._paddle_pos.x] = 1.0
     return board.flatten()
 
   def observation_spec(self):
@@ -164,7 +159,7 @@ class Environment(object):
       A specification dict describing the observation fields and shapes.
     """
     return dict(
-        info_state=tuple([2 * self._height * self._width]),
+        info_state=tuple([self._height * self._width]),
         legal_actions=(self._num_actions,),
         current_player=(),
     )

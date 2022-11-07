@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,10 @@
 #include <sys/types.h>
 
 #include <utility>
+
+#include "open_spiel/game_parameters.h"
+#include "open_spiel/spiel.h"
+#include "open_spiel/utils/tensor_view.h"
 
 namespace open_spiel {
 namespace pig {
@@ -34,6 +38,7 @@ constexpr int kDefaultDiceOutcomes = 6;
 constexpr int kDefaultHorizon = 1000;
 constexpr int kDefaultPlayers = 2;
 constexpr int kDefaultWinScore = 100;
+constexpr bool kDefaultPiglet = false;
 
 // Facts about the game
 const GameType kGameType{
@@ -46,28 +51,29 @@ const GameType kGameType{
     GameType::RewardModel::kTerminal,
     /*max_num_players=*/10,
     /*min_num_players=*/2,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/true,
-    /*provides_observation=*/false,
-    /*provides_observation_as_normalized_vector=*/false,
+    /*provides_information_state_string=*/false,
+    /*provides_information_state_tensor=*/false,
+    /*provides_observation_string=*/true,
+    /*provides_observation_tensor=*/true,
     /*parameter_specification=*/
     {
-        {"players", {GameParameter::Type::kInt, false}},
-        {"horizon", {GameParameter::Type::kInt, false}},
-        {"winscore", {GameParameter::Type::kInt, false}},
-        {"diceoutcomes", {GameParameter::Type::kInt, false}},
+        {"players", GameParameter(kDefaultPlayers)},
+        {"horizon", GameParameter(kDefaultHorizon)},
+        {"winscore", GameParameter(kDefaultWinScore)},
+        {"diceoutcomes", GameParameter(kDefaultDiceOutcomes)},
+        {"piglet", GameParameter(kDefaultPiglet)},
     }};
 
-static std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new PigGame(params));
+static std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new PigGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
 }  // namespace
 
-std::string PigState::ActionToString(int player, Action move_id) const {
+std::string PigState::ActionToString(Player player, Action move_id) const {
   if (player == kChancePlayerId) {
-    return absl::StrCat("chance outcome ", move_id);
+    return absl::StrCat("Roll ", piglet_ ? move_id : 1 + move_id);
   } else if (move_id == kRoll) {
     return "roll";
   } else {
@@ -80,7 +86,7 @@ bool PigState::IsTerminal() const {
     return true;
   }
 
-  for (int p = 0; p < num_players_; p++) {
+  for (auto p = Player{0}; p < num_players_; p++) {
     if (scores_[p] >= win_score_) {
       return true;
     }
@@ -90,13 +96,13 @@ bool PigState::IsTerminal() const {
 
 std::vector<double> PigState::Returns() const {
   if (!IsTerminal()) {
-    return std::vector<double>(0.0, num_players_);
+    return std::vector<double>(num_players_, 0.0);
   }
 
   // For (n>2)-player games, must keep it zero-sum.
   std::vector<double> returns(num_players_, -1.0 / (num_players_ - 1));
 
-  for (int player = 0; player < num_players_; ++player) {
+  for (auto player = Player{0}; player < num_players_; ++player) {
     if (scores_[player] >= win_score_) {
       returns[player] = 1.0;
       return returns;
@@ -104,22 +110,22 @@ std::vector<double> PigState::Returns() const {
   }
 
   // Nobody has won? (e.g. over horizon length.) Then everyone gets 0.
-  return std::vector<double>(0.0, num_players_);
+  return std::vector<double>(num_players_, 0.0);
 }
 
-std::string PigState::InformationState(int player) const {
+std::string PigState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   return ToString();
 }
 
-std::vector<int> PigGame::InformationStateNormalizedVectorShape() const {
+std::vector<int> PigGame::ObservationTensorShape() const {
   int num_bins = (win_score_ / kBinSize) + 1;
   return {1 + num_players_, num_bins};
 }
 
-void PigState::InformationStateAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+void PigState::ObservationTensor(Player player,
+                                 absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
@@ -128,9 +134,8 @@ void PigState::InformationStateAsNormalizedVector(
   int num_bins = (win_score_ / kBinSize) + 1;
 
   // One-hot encoding: turn total (#bin) followed by p1, p2, ...
-  values->resize(num_bins + num_players_ * num_bins);
-  std::fill(values->begin(), values->end(), 0.);
-  int pos = 0;
+  // Treat `values` as a 2-d tensor.
+  TensorView<2> view(values, {1 + num_players_, num_bins}, true);
 
   // One-hot encoding:
   //  - turn total (#bins)
@@ -140,40 +145,26 @@ void PigState::InformationStateAsNormalizedVector(
   //      .
   //      .
 
-  int bin = turn_total_ / kBinSize;
-  if (bin >= num_bins) {
-    // When the value is too large, use last bin.
-    (*values)[pos + (num_bins - 1)] = 1;
-  } else {
-    (*values)[pos + bin] = 1;
-  }
+  // turn total
+  view[{0, std::min(turn_total_ / kBinSize, num_bins - 1)}] = 1;
 
-  pos += num_bins;
-
-  // Find the right bin for each player.
-  for (int p = 0; p < num_players_; p++) {
-    bin = scores_[p] / kBinSize;
-    if (bin >= num_bins) {
-      // When the value is too large, use last bin.
-      (*values)[pos + (num_bins - 1)] = 1;
-    } else {
-      (*values)[pos + bin] = 1;
-    }
-
-    pos += num_bins;
+  for (auto p = Player{0}; p < num_players_; p++) {
+    // score of each player
+    view[{1 + p, std::min(scores_[p] / kBinSize, num_bins - 1)}] = 1;
   }
 }
 
-PigState::PigState(int num_distinct_actions, int num_players, int dice_outcomes,
-                   int horizon, int win_score)
-    : State(num_distinct_actions, num_players),
+PigState::PigState(std::shared_ptr<const Game> game, int dice_outcomes,
+                   int horizon, int win_score, bool piglet)
+    : State(game),
       dice_outcomes_(dice_outcomes),
       horizon_(horizon),
-      win_score_(win_score) {
+      win_score_(win_score),
+      piglet_(piglet) {
   total_moves_ = 0;
   cur_player_ = 0;
   turn_player_ = 0;
-  scores_.resize(num_players, 0);
+  scores_.resize(game->NumPlayers(), 0);
   turn_total_ = 0;
 }
 
@@ -183,7 +174,7 @@ int PigState::CurrentPlayer() const {
 
 void PigState::DoApplyAction(Action move) {
   // For decision node: 0 means roll, 1 means stop.
-  // For chance node: outcome of the dice (1-x).
+  // For chance node: outcome of the dice (x-1, piglet: [x != 1]).
   if (cur_player_ >= 0 && move == kRoll) {
     // Player roll -> chance node.
     cur_player_ = kChancePlayerId;
@@ -198,14 +189,14 @@ void PigState::DoApplyAction(Action move) {
   } else if (IsChanceNode()) {
     // Resolve chance node outcome. If 1, reset turn total and change players;
     // else, add to total and keep going.
-    if (move == 1) {
+    if (move == 0) {
       // Reset turn total and loses turn!
       turn_total_ = 0;
       turn_player_ = NextPlayerRoundRobin(turn_player_, num_players_);
       cur_player_ = turn_player_;
     } else {
       // Add to the turn total.
-      turn_total_ += (move + 1);
+      turn_total_ += (piglet_ ? 1 : move + 1);
       cur_player_ = turn_player_;
     }
   } else {
@@ -214,20 +205,35 @@ void PigState::DoApplyAction(Action move) {
 }
 
 std::vector<Action> PigState::LegalActions() const {
-  if (IsChanceNode())
+  if (IsChanceNode()) {
     return LegalChanceOutcomes();
-  else
-    return {kRoll, kStop};
+  } else if (IsTerminal()) {
+    return {};
+  } else {
+    if (scores_[cur_player_] + turn_total_ >= win_score_) {
+      return {kStop};
+    } else {
+      return {kRoll, kStop};
+    }
+  }
 }
 
 std::vector<std::pair<Action, double>> PigState::ChanceOutcomes() const {
   SPIEL_CHECK_TRUE(IsChanceNode());
   std::vector<std::pair<Action, double>> outcomes;
 
-  // All the chance outcomes come after roll and stop.
-  outcomes.reserve(dice_outcomes_);
-  for (int i = 0; i < dice_outcomes_; i++) {
-    outcomes.push_back(std::make_pair(i + 1, 1.0 / dice_outcomes_));
+  if (piglet_) {
+    // Chance outcomes are labelled 0 or 1, corresponding to rolling 1 or not 1
+    // respectively
+    outcomes.reserve(2);
+    outcomes.push_back(std::make_pair(0, 1.0 / dice_outcomes_));
+    outcomes.push_back(std::make_pair(1, 1.0 - (1.0 / dice_outcomes_)));
+  } else {
+    // Chance outcomes are labelled 0+, corresponding to rolling 1+x.
+    outcomes.reserve(dice_outcomes_);
+    for (int i = 0; i < dice_outcomes_; i++) {
+      outcomes.push_back(std::make_pair(i, 1.0 / dice_outcomes_));
+    }
   }
 
   return outcomes;
@@ -235,9 +241,9 @@ std::vector<std::pair<Action, double>> PigState::ChanceOutcomes() const {
 
 std::string PigState::ToString() const {
   return absl::StrCat("Scores: ", absl::StrJoin(scores_, " "),
-                      ", Turn total:", turn_total_,
+                      ", Turn total: ", turn_total_,
                       "\nCurrent player: ", turn_player_,
-                      (cur_player_ == 0 ? ", rolling\n" : "\n"));
+                      (cur_player_ == kChancePlayerId ? " (rolling)\n" : "\n"));
 }
 
 std::unique_ptr<State> PigState::Clone() const {
@@ -246,10 +252,11 @@ std::unique_ptr<State> PigState::Clone() const {
 
 PigGame::PigGame(const GameParameters& params)
     : Game(kGameType, params),
-      dice_outcomes_(ParameterValue<int>("diceoutcomes", kDefaultDiceOutcomes)),
-      horizon_(ParameterValue<int>("horizon", kDefaultHorizon)),
-      num_players_(ParameterValue<int>("players", kDefaultPlayers)),
-      win_score_(ParameterValue<int>("winscore", kDefaultWinScore)) {}
+      dice_outcomes_(ParameterValue<int>("diceoutcomes")),
+      horizon_(ParameterValue<int>("horizon")),
+      num_players_(ParameterValue<int>("players")),
+      win_score_(ParameterValue<int>("winscore")),
+      piglet_(ParameterValue<bool>("piglet")) {}
 
 }  // namespace pig
 }  // namespace open_spiel

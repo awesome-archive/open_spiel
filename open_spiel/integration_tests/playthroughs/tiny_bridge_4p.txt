@@ -1,241 +1,326 @@
 game: tiny_bridge_4p
-seed: 4133439701
 
-GameType.chance_mode = ChanceMode.DETERMINISTIC
+GameType.chance_mode = ChanceMode.EXPLICIT_STOCHASTIC
 GameType.dynamics = Dynamics.SEQUENTIAL
-GameType.information = Information.PERFECT_INFORMATION
+GameType.information = Information.IMPERFECT_INFORMATION
 GameType.long_name = "Tiny Bridge (Contested)"
 GameType.max_num_players = 4
 GameType.min_num_players = 4
 GameType.parameter_specification = []
-GameType.provides_information_state = True
-GameType.provides_information_state_as_normalized_vector = False
-GameType.provides_observation = False
-GameType.provides_observation_as_normalized_vector = False
+GameType.provides_information_state_string = True
+GameType.provides_information_state_tensor = True
+GameType.provides_observation_string = True
+GameType.provides_observation_tensor = True
+GameType.provides_factored_observation_string = False
 GameType.reward_model = RewardModel.TERMINAL
 GameType.short_name = "tiny_bridge_4p"
 GameType.utility = Utility.ZERO_SUM
 
 NumDistinctActions() = 9
+PolicyTensorShape() = [9]
 MaxChanceOutcomes() = 28
 GetParameters() = {}
 NumPlayers() = 4
-MinUtility() = -12.0
-MaxUtility() = 12.0
+MinUtility() = -160.0
+MaxUtility() = 160.0
 UtilitySum() = 0.0
+InformationStateTensorShape() = [84]
+InformationStateTensorLayout() = TensorLayout.CHW
+InformationStateTensorSize() = 84
+ObservationTensorShape() = [30]
+ObservationTensorLayout() = TensorLayout.CHW
+ObservationTensorSize() = 30
 MaxGameLength() = 57
 ToString() = "tiny_bridge_4p()"
 
 # State 0
+# W:?? N:?? E:?? S:??
 IsTerminal() = False
-ToString() = "W:?? N:?? E:?? S:??"
 History() = []
 HistoryString() = ""
 IsChanceNode() = True
 IsSimultaneousNode() = False
 CurrentPlayer() = -1
-InformationState(0) = "??"
-InformationState(1) = "??"
-InformationState(2) = "??"
-InformationState(3) = "??"
-ChanceOutcomes() = [{8, 0.035714285714}, {16, 0.035714285714}, {24, 0.035714285714}, {32, 0.035714285714}, {40, 0.035714285714}, {48, 0.035714285714}, {56, 0.035714285714}, {17, 0.035714285714}, {25, 0.035714285714}, {33, 0.035714285714}, {41, 0.035714285714}, {49, 0.035714285714}, {57, 0.035714285714}, {26, 0.035714285714}, {34, 0.035714285714}, {42, 0.035714285714}, {50, 0.035714285714}, {58, 0.035714285714}, {35, 0.035714285714}, {43, 0.035714285714}, {51, 0.035714285714}, {59, 0.035714285714}, {44, 0.035714285714}, {52, 0.035714285714}, {60, 0.035714285714}, {53, 0.035714285714}, {61, 0.035714285714}, {62, 0.035714285714}]
-LegalActions() = [8, 16, 24, 32, 40, 48, 56, 17, 25, 33, 41, 49, 57, 26, 34, 42, 50, 58, 35, 43, 51, 59, 44, 52, 60, 53, 61, 62]
-StringLegalActions() = ["HJHQ", "HJHK", "HJHA", "HJSJ", "HJSQ", "HJSK", "HJSA", "HQHK", "HQHA", "HQSJ", "HQSQ", "HQSK", "HQSA", "HKHA", "HKSJ", "HKSQ", "HKSK", "HKSA", "HASJ", "HASQ", "HASK", "HASA", "SJSQ", "SJSK", "SJSA", "SQSK", "SQSA", "SKSA"]
+InformationStateString(0) = "??"
+InformationStateString(1) = "??"
+InformationStateString(2) = "??"
+InformationStateString(3) = "??"
+InformationStateTensor(0): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(1): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(2): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(3): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+ObservationString(0) = "??"
+ObservationString(1) = "??"
+ObservationString(2) = "??"
+ObservationString(3) = "??"
+ObservationTensor(0): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯
+ObservationTensor(1): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯
+ObservationTensor(2): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯
+ObservationTensor(3): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯
+ChanceOutcomes() = [(0, 0.03571428571428571), (1, 0.03571428571428571), (3, 0.03571428571428571), (6, 0.03571428571428571), (10, 0.03571428571428571), (15, 0.03571428571428571), (21, 0.03571428571428571), (2, 0.03571428571428571), (4, 0.03571428571428571), (7, 0.03571428571428571), (11, 0.03571428571428571), (16, 0.03571428571428571), (22, 0.03571428571428571), (5, 0.03571428571428571), (8, 0.03571428571428571), (12, 0.03571428571428571), (17, 0.03571428571428571), (23, 0.03571428571428571), (9, 0.03571428571428571), (13, 0.03571428571428571), (18, 0.03571428571428571), (24, 0.03571428571428571), (14, 0.03571428571428571), (19, 0.03571428571428571), (25, 0.03571428571428571), (20, 0.03571428571428571), (26, 0.03571428571428571), (27, 0.03571428571428571)]
+LegalActions() = [0, 1, 3, 6, 10, 15, 21, 2, 4, 7, 11, 16, 22, 5, 8, 12, 17, 23, 9, 13, 18, 24, 14, 19, 25, 20, 26, 27]
+StringLegalActions() = ["HQHJ", "HKHJ", "HAHJ", "SJHJ", "SQHJ", "SKHJ", "SAHJ", "HKHQ", "HAHQ", "SJHQ", "SQHQ", "SKHQ", "SAHQ", "HAHK", "SJHK", "SQHK", "SKHK", "SAHK", "SJHA", "SQHA", "SKHA", "SAHA", "SQSJ", "SKSJ", "SASJ", "SKSQ", "SASQ", "SASK"]
 
-# Apply action "HJSA"
-action: 56
+# Apply action "SAHJ"
+action: 21
 
 # State 1
+# W:SAHJ N:?? E:?? S:??
 IsTerminal() = False
-ToString() = "W:HJSA N:?? E:?? S:??"
-History() = [56]
-HistoryString() = "56"
+History() = [21]
+HistoryString() = "21"
 IsChanceNode() = True
 IsSimultaneousNode() = False
 CurrentPlayer() = -1
-InformationState(0) = "HJSA"
-InformationState(1) = "??"
-InformationState(2) = "??"
-InformationState(3) = "??"
-ChanceOutcomes() = [{17, 0.066666666667}, {25, 0.066666666667}, {33, 0.066666666667}, {41, 0.066666666667}, {49, 0.066666666667}, {26, 0.066666666667}, {34, 0.066666666667}, {42, 0.066666666667}, {50, 0.066666666667}, {35, 0.066666666667}, {43, 0.066666666667}, {51, 0.066666666667}, {44, 0.066666666667}, {52, 0.066666666667}, {53, 0.066666666667}]
-LegalActions() = [17, 25, 33, 41, 49, 26, 34, 42, 50, 35, 43, 51, 44, 52, 53]
-StringLegalActions() = ["HQHK", "HQHA", "HQSJ", "HQSQ", "HQSK", "HKHA", "HKSJ", "HKSQ", "HKSK", "HASJ", "HASQ", "HASK", "SJSQ", "SJSK", "SQSK"]
+InformationStateString(0) = "SAHJ"
+InformationStateString(1) = "??"
+InformationStateString(2) = "??"
+InformationStateString(3) = "??"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(1): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(2): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(3): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+ObservationString(0) = "SAHJ"
+ObservationString(1) = "??"
+ObservationString(2) = "??"
+ObservationString(3) = "??"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯
+ObservationTensor(1): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯
+ObservationTensor(2): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯
+ObservationTensor(3): ◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯
+ChanceOutcomes() = [(2, 0.06666666666666667), (4, 0.06666666666666667), (7, 0.06666666666666667), (11, 0.06666666666666667), (16, 0.06666666666666667), (5, 0.06666666666666667), (8, 0.06666666666666667), (12, 0.06666666666666667), (17, 0.06666666666666667), (9, 0.06666666666666667), (13, 0.06666666666666667), (18, 0.06666666666666667), (14, 0.06666666666666667), (19, 0.06666666666666667), (20, 0.06666666666666667)]
+LegalActions() = [2, 4, 7, 11, 16, 5, 8, 12, 17, 9, 13, 18, 14, 19, 20]
+StringLegalActions() = ["HKHQ", "HAHQ", "SJHQ", "SQHQ", "SKHQ", "HAHK", "SJHK", "SQHK", "SKHK", "SJHA", "SQHA", "SKHA", "SQSJ", "SKSJ", "SKSQ"]
 
-# Apply action "HQHA"
-action: 25
+# Apply action "HAHQ"
+action: 4
 
 # State 2
-IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:?? S:??"
-History() = [56, 25]
-HistoryString() = "56 25"
-IsChanceNode() = True
-IsSimultaneousNode() = False
-CurrentPlayer() = -1
-InformationState(0) = "HJSA"
-InformationState(1) = "HQHA"
-InformationState(2) = "??"
-InformationState(3) = "??"
-ChanceOutcomes() = [{34, 0.166666666667}, {42, 0.166666666667}, {50, 0.166666666667}, {44, 0.166666666667}, {52, 0.166666666667}, {53, 0.166666666667}]
-LegalActions() = [34, 42, 50, 44, 52, 53]
-StringLegalActions() = ["HKSJ", "HKSQ", "HKSK", "SJSQ", "SJSK", "SQSK"]
-
-# Apply action "HKSK"
-action: 50
+# Apply action "SKHK"
+action: 17
 
 # State 3
-IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:??"
-History() = [56, 25, 50]
-HistoryString() = "56 25 50"
-IsChanceNode() = True
-IsSimultaneousNode() = False
-CurrentPlayer() = -1
-InformationState(0) = "HJSA"
-InformationState(1) = "HQHA"
-InformationState(2) = "HKSK"
-InformationState(3) = "??"
-ChanceOutcomes() = [{44, 1.000000000000}]
-LegalActions() = [44]
-StringLegalActions() = ["SJSQ"]
-
-# Apply action "SJSQ"
-action: 44
+# Apply action "SQSJ"
+action: 14
 
 # State 4
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ
 IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ"
-History() = [56, 25, 50, 44]
-HistoryString() = "56 25 50 44"
+History() = [21, 4, 17, 14]
+HistoryString() = "21, 4, 17, 14"
 IsChanceNode() = False
 IsSimultaneousNode() = False
 CurrentPlayer() = 0
-InformationState(0) = "HJSA"
-InformationState(1) = "HQHA"
-InformationState(2) = "HKSK"
-InformationState(3) = "SJSQ"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
+InformationStateString(0) = "SAHJ"
+InformationStateString(1) = "HAHQ"
+InformationStateString(2) = "SKHK"
+InformationStateString(3) = "SQSJ"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+ObservationString(0) = "SAHJ"
+ObservationString(1) = "HAHQ"
+ObservationString(2) = "SKHK"
+ObservationString(3) = "SQSJ"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
+LegalActions() = [0, 1, 2, 3, 4, 5, 6]
+StringLegalActions() = ["Pass", "1H", "1S", "1NT", "2H", "2S", "2NT"]
+
+# Apply action "Pass"
+action: 0
+
+# State 5
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass
+IsTerminal() = False
+History() = [21, 4, 17, 14, 0]
+HistoryString() = "21, 4, 17, 14, 0"
+IsChanceNode() = False
+IsSimultaneousNode() = False
+CurrentPlayer() = 1
+InformationStateString(0) = "SAHJ Us Pass"
+InformationStateString(1) = "HAHQ RH Pass"
+InformationStateString(2) = "SKHK Pd Pass"
+InformationStateString(3) = "SQSJ LH Pass"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+ObservationString(0) = "SAHJ"
+ObservationString(1) = "HAHQ"
+ObservationString(2) = "SKHK"
+ObservationString(3) = "SQSJ"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
 LegalActions() = [0, 1, 2, 3, 4, 5, 6]
 StringLegalActions() = ["Pass", "1H", "1S", "1NT", "2H", "2S", "2NT"]
 
 # Apply action "2H"
 action: 4
 
-# State 5
+# State 6
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H
 IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H"
-History() = [56, 25, 50, 44, 4]
-HistoryString() = "56 25 50 44 4"
+History() = [21, 4, 17, 14, 0, 4]
+HistoryString() = "21, 4, 17, 14, 0, 4"
 IsChanceNode() = False
 IsSimultaneousNode() = False
-CurrentPlayer() = 1
-InformationState(0) = "HJSA 2H"
-InformationState(1) = "HQHA 2H"
-InformationState(2) = "HKSK 2H"
-InformationState(3) = "SJSQ 2H"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
+CurrentPlayer() = 2
+InformationStateString(0) = "SAHJ Us Pass-2H"
+InformationStateString(1) = "HAHQ RH Pass-2H"
+InformationStateString(2) = "SKHK Pd Pass-2H"
+InformationStateString(3) = "SQSJ LH Pass-2H"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+ObservationString(0) = "SAHJ 2H:LH"
+ObservationString(1) = "HAHQ 2H:Us"
+ObservationString(2) = "SKHK 2H:RH"
+ObservationString(3) = "SQSJ 2H:Pd"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◉◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◉◯◯
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◉◯◯
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◉◯◯
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯◯
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
 LegalActions() = [0, 5, 6, 7]
 StringLegalActions() = ["Pass", "2S", "2NT", "Dbl"]
 
 # Apply action "2S"
 action: 5
 
-# State 6
+# State 7
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H-2S
 IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H-2S"
-History() = [56, 25, 50, 44, 4, 5]
-HistoryString() = "56 25 50 44 4 5"
+History() = [21, 4, 17, 14, 0, 4, 5]
+HistoryString() = "21, 4, 17, 14, 0, 4, 5"
 IsChanceNode() = False
 IsSimultaneousNode() = False
-CurrentPlayer() = 2
-InformationState(0) = "HJSA 2H-2S"
-InformationState(1) = "HQHA 2H-2S"
-InformationState(2) = "HKSK 2H-2S"
-InformationState(3) = "SJSQ 2H-2S"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
+CurrentPlayer() = 3
+InformationStateString(0) = "SAHJ Us Pass-2H-2S"
+InformationStateString(1) = "HAHQ RH Pass-2H-2S"
+InformationStateString(2) = "SKHK Pd Pass-2H-2S"
+InformationStateString(3) = "SQSJ LH Pass-2H-2S"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯
+ObservationString(0) = "SAHJ 2S:Pd"
+ObservationString(1) = "HAHQ 2S:LH"
+ObservationString(2) = "SKHK 2S:Us"
+ObservationString(3) = "SQSJ 2S:RH"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◉◯
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◉◯
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◉◯
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
 LegalActions() = [0, 6, 7]
 StringLegalActions() = ["Pass", "2NT", "Dbl"]
 
 # Apply action "2NT"
 action: 6
 
-# State 7
+# State 8
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H-2S-2NT
 IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H-2S-2NT"
-History() = [56, 25, 50, 44, 4, 5, 6]
-HistoryString() = "56 25 50 44 4 5 6"
+History() = [21, 4, 17, 14, 0, 4, 5, 6]
+HistoryString() = "21, 4, 17, 14, 0, 4, 5, 6"
 IsChanceNode() = False
 IsSimultaneousNode() = False
-CurrentPlayer() = 3
-InformationState(0) = "HJSA 2H-2S-2NT"
-InformationState(1) = "HQHA 2H-2S-2NT"
-InformationState(2) = "HKSK 2H-2S-2NT"
-InformationState(3) = "SJSQ 2H-2S-2NT"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
+CurrentPlayer() = 0
+InformationStateString(0) = "SAHJ Us Pass-2H-2S-2NT"
+InformationStateString(1) = "HAHQ RH Pass-2H-2S-2NT"
+InformationStateString(2) = "SKHK Pd Pass-2H-2S-2NT"
+InformationStateString(3) = "SQSJ LH Pass-2H-2S-2NT"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯
+ObservationString(0) = "SAHJ 2NT:RH"
+ObservationString(1) = "HAHQ 2NT:Pd"
+ObservationString(2) = "SKHK 2NT:LH"
+ObservationString(3) = "SQSJ 2NT:Us"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◉
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◉
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
 LegalActions() = [0, 7]
 StringLegalActions() = ["Pass", "Dbl"]
 
 # Apply action "Dbl"
 action: 7
 
-# State 8
+# State 9
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H-2S-2NT-Dbl
 IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H-2S-2NT-Dbl"
-History() = [56, 25, 50, 44, 4, 5, 6, 7]
-HistoryString() = "56 25 50 44 4 5 6 7"
+History() = [21, 4, 17, 14, 0, 4, 5, 6, 7]
+HistoryString() = "21, 4, 17, 14, 0, 4, 5, 6, 7"
 IsChanceNode() = False
 IsSimultaneousNode() = False
-CurrentPlayer() = 0
-InformationState(0) = "HJSA 2H-2S-2NT-Dbl"
-InformationState(1) = "HQHA 2H-2S-2NT-Dbl"
-InformationState(2) = "HKSK 2H-2S-2NT-Dbl"
-InformationState(3) = "SJSQ 2H-2S-2NT-Dbl"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
+CurrentPlayer() = 1
+InformationStateString(0) = "SAHJ Us Pass-2H-2S-2NT-Dbl"
+InformationStateString(1) = "HAHQ RH Pass-2H-2S-2NT-Dbl"
+InformationStateString(2) = "SKHK Pd Pass-2H-2S-2NT-Dbl"
+InformationStateString(3) = "SQSJ LH Pass-2H-2S-2NT-Dbl"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◯◯◯◯◯◯◉
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯◯◯◯◯◯◉◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯◯◯◯◯◯◉◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◯◯◉◯◯◯
+ObservationString(0) = "SAHJ 2NT:RH Dbl:Us"
+ObservationString(1) = "HAHQ 2NT:Pd Dbl:RH"
+ObservationString(2) = "SKHK 2NT:LH Dbl:Pd"
+ObservationString(3) = "SQSJ 2NT:Us Dbl:LH"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◉◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◉◯◯◯◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◉
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◉◯◯◯◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◉
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◉◯◯◯◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◉
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
 LegalActions() = [0, 8]
 StringLegalActions() = ["Pass", "RDbl"]
 
 # Apply action "RDbl"
 action: 8
 
-# State 9
-IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H-2S-2NT-Dbl-RDbl"
-History() = [56, 25, 50, 44, 4, 5, 6, 7, 8]
-HistoryString() = "56 25 50 44 4 5 6 7 8"
-IsChanceNode() = False
-IsSimultaneousNode() = False
-CurrentPlayer() = 1
-InformationState(0) = "HJSA 2H-2S-2NT-Dbl-RDbl"
-InformationState(1) = "HQHA 2H-2S-2NT-Dbl-RDbl"
-InformationState(2) = "HKSK 2H-2S-2NT-Dbl-RDbl"
-InformationState(3) = "SJSQ 2H-2S-2NT-Dbl-RDbl"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
-LegalActions() = [0]
-StringLegalActions() = ["Pass"]
-
-# Apply action "Pass"
-action: 0
-
 # State 10
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H-2S-2NT-Dbl-RDbl
 IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H-2S-2NT-Dbl-RDbl-Pass"
-History() = [56, 25, 50, 44, 4, 5, 6, 7, 8, 0]
-HistoryString() = "56 25 50 44 4 5 6 7 8 0"
+History() = [21, 4, 17, 14, 0, 4, 5, 6, 7, 8]
+HistoryString() = "21, 4, 17, 14, 0, 4, 5, 6, 7, 8"
 IsChanceNode() = False
 IsSimultaneousNode() = False
 CurrentPlayer() = 2
-InformationState(0) = "HJSA 2H-2S-2NT-Dbl-RDbl-Pass"
-InformationState(1) = "HQHA 2H-2S-2NT-Dbl-RDbl-Pass"
-InformationState(2) = "HKSK 2H-2S-2NT-Dbl-RDbl-Pass"
-InformationState(3) = "SJSQ 2H-2S-2NT-Dbl-RDbl-Pass"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
+InformationStateString(0) = "SAHJ Us Pass-2H-2S-2NT-Dbl-RDbl"
+InformationStateString(1) = "HAHQ RH Pass-2H-2S-2NT-Dbl-RDbl"
+InformationStateString(2) = "SKHK Pd Pass-2H-2S-2NT-Dbl-RDbl"
+InformationStateString(3) = "SQSJ LH Pass-2H-2S-2NT-Dbl-RDbl"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◯◯◯◯◉
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◉◯◯◯◯◯◉◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯◯◯◯◉◯◉◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◉◯◯◯
+ObservationString(0) = "SAHJ 2NT:RH Dbl:Us RDbl:LH"
+ObservationString(1) = "HAHQ 2NT:Pd Dbl:RH RDbl:Us"
+ObservationString(2) = "SKHK 2NT:LH Dbl:Pd RDbl:RH"
+ObservationString(3) = "SQSJ 2NT:Us Dbl:LH RDbl:Pd"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◉◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◯◉
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◉◯◯◯◯◉◉◯◯◯◯◯◯◉◯◯◯◯◯◉
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◉
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◉
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
 LegalActions() = [0]
 StringLegalActions() = ["Pass"]
 
@@ -243,19 +328,31 @@ StringLegalActions() = ["Pass"]
 action: 0
 
 # State 11
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H-2S-2NT-Dbl-RDbl-Pass
 IsTerminal() = False
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H-2S-2NT-Dbl-RDbl-Pass-Pass"
-History() = [56, 25, 50, 44, 4, 5, 6, 7, 8, 0, 0]
-HistoryString() = "56 25 50 44 4 5 6 7 8 0 0"
+History() = [21, 4, 17, 14, 0, 4, 5, 6, 7, 8, 0]
+HistoryString() = "21, 4, 17, 14, 0, 4, 5, 6, 7, 8, 0"
 IsChanceNode() = False
 IsSimultaneousNode() = False
 CurrentPlayer() = 3
-InformationState(0) = "HJSA 2H-2S-2NT-Dbl-RDbl-Pass-Pass"
-InformationState(1) = "HQHA 2H-2S-2NT-Dbl-RDbl-Pass-Pass"
-InformationState(2) = "HKSK 2H-2S-2NT-Dbl-RDbl-Pass-Pass"
-InformationState(3) = "SJSQ 2H-2S-2NT-Dbl-RDbl-Pass-Pass"
-Rewards() = [0.0, 0.0, 0.0, 0.0]
-Returns() = [0.0, 0.0, 0.0, 0.0]
+InformationStateString(0) = "SAHJ Us Pass-2H-2S-2NT-Dbl-RDbl-Pass"
+InformationStateString(1) = "HAHQ RH Pass-2H-2S-2NT-Dbl-RDbl-Pass"
+InformationStateString(2) = "SKHK Pd Pass-2H-2S-2NT-Dbl-RDbl-Pass"
+InformationStateString(3) = "SQSJ LH Pass-2H-2S-2NT-Dbl-RDbl-Pass"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◯◯◯◯◉
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◉◯◯◯◯◯◉◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯◯◯◯◉◯◉◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◉◯◯◯
+ObservationString(0) = "SAHJ 2NT:RH Dbl:Us RDbl:LH"
+ObservationString(1) = "HAHQ 2NT:Pd Dbl:RH RDbl:Us"
+ObservationString(2) = "SKHK 2NT:LH Dbl:Pd RDbl:RH"
+ObservationString(3) = "SQSJ 2NT:Us Dbl:LH RDbl:Pd"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◉◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◯◉
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◉◯◯◯◯◉◉◯◯◯◯◯◯◉◯◯◯◯◯◉
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◉
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◉
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
 LegalActions() = [0]
 StringLegalActions() = ["Pass"]
 
@@ -263,16 +360,60 @@ StringLegalActions() = ["Pass"]
 action: 0
 
 # State 12
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass
+IsTerminal() = False
+History() = [21, 4, 17, 14, 0, 4, 5, 6, 7, 8, 0, 0]
+HistoryString() = "21, 4, 17, 14, 0, 4, 5, 6, 7, 8, 0, 0"
+IsChanceNode() = False
+IsSimultaneousNode() = False
+CurrentPlayer() = 0
+InformationStateString(0) = "SAHJ Us Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass"
+InformationStateString(1) = "HAHQ RH Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass"
+InformationStateString(2) = "SKHK Pd Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass"
+InformationStateString(3) = "SQSJ LH Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◯◯◯◯◉
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◉◯◯◯◯◯◉◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯◯◯◯◉◯◉◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◉◯◯◯
+ObservationString(0) = "SAHJ 2NT:RH Dbl:Us RDbl:LH"
+ObservationString(1) = "HAHQ 2NT:Pd Dbl:RH RDbl:Us"
+ObservationString(2) = "SKHK 2NT:LH Dbl:Pd RDbl:RH"
+ObservationString(3) = "SQSJ 2NT:Us Dbl:LH RDbl:Pd"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◉◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◯◉
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◉◯◯◯◯◉◉◯◯◯◯◯◯◉◯◯◯◯◯◉
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◉
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◉
+Rewards() = [0, 0, 0, 0]
+Returns() = [0, 0, 0, 0]
+LegalActions() = [0]
+StringLegalActions() = ["Pass"]
+
+# Apply action "Pass"
+action: 0
+
+# State 13
+# W:SAHJ N:HAHQ E:SKHK S:SQSJ Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass
 IsTerminal() = True
-ToString() = "W:HJSA N:HQHA E:HKSK S:SJSQ 2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
-History() = [56, 25, 50, 44, 4, 5, 6, 7, 8, 0, 0, 0]
-HistoryString() = "56 25 50 44 4 5 6 7 8 0 0 0"
+History() = [21, 4, 17, 14, 0, 4, 5, 6, 7, 8, 0, 0, 0]
+HistoryString() = "21, 4, 17, 14, 0, 4, 5, 6, 7, 8, 0, 0, 0"
 IsChanceNode() = False
 IsSimultaneousNode() = False
 CurrentPlayer() = -4
-InformationState(0) = "HJSA 2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
-InformationState(1) = "HQHA 2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
-InformationState(2) = "HKSK 2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
-InformationState(3) = "SJSQ 2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
-Rewards() = [-4.0, 4.0, -4.0, 4.0]
-Returns() = [-4.0, 4.0, -4.0, 4.0]
+InformationStateString(0) = "SAHJ Us Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
+InformationStateString(1) = "HAHQ RH Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
+InformationStateString(2) = "SKHK Pd Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
+InformationStateString(3) = "SQSJ LH Pass-2H-2S-2NT-Dbl-RDbl-Pass-Pass-Pass"
+InformationStateTensor(0): ◉◯◯◯◯◯◯◉◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◯◯◯◯◉
+InformationStateTensor(1): ◯◉◯◉◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◉◯◯◯◯◯◉◯
+InformationStateTensor(2): ◯◯◉◯◯◯◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◉◯◯◯◯◯◉◯◯◯◯◉◯◉◯◯
+InformationStateTensor(3): ◯◯◯◯◉◉◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◯◉◯◯◯◯◯◯◯◯◯◯◯◯◉◯◉◯◯◯◯◉◯◉◯◯◯
+ObservationString(0) = "SAHJ 2NT:RH Dbl:Us RDbl:LH"
+ObservationString(1) = "HAHQ 2NT:Pd Dbl:RH RDbl:Us"
+ObservationString(2) = "SKHK 2NT:LH Dbl:Pd RDbl:RH"
+ObservationString(3) = "SQSJ 2NT:Us Dbl:LH RDbl:Pd"
+ObservationTensor(0): ◉◯◯◯◯◯◯◉◯◯◯◉◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◯◉
+ObservationTensor(1): ◯◉◯◉◯◯◯◯◯◯◉◯◯◯◯◉◉◯◯◯◯◯◯◉◯◯◯◯◯◉
+ObservationTensor(2): ◯◯◉◯◯◯◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◉
+ObservationTensor(3): ◯◯◯◯◉◉◯◯◉◯◯◯◯◉◯◯◯◯◉◯◯◉◯◯◯◯◯◯◯◉
+Rewards() = [80, -80, 80, -80]
+Returns() = [80, -80, 80, -80]

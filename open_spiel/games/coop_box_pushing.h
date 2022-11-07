@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_COOP_BOX_PUSHING_SOCCER_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_COOP_BOX_PUSHING_SOCCER_H_
+#ifndef OPEN_SPIEL_GAMES_COOP_BOX_PUSHING_SOCCER_H_
+#define OPEN_SPIEL_GAMES_COOP_BOX_PUSHING_SOCCER_H_
 
 #include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,9 @@
 // http://rbr.cs.umass.edu/papers/SZuai07.pdf
 //
 // Parameters:
-//     "horizon"       int    length of horizon                (default = 100)
+//     "fully_observable" bool   agents see everything, or only partial view as
+//                               described in the original paper (def: false)
+//     "horizon"          int    length of horizon (default = 100)
 
 namespace open_spiel {
 namespace coop_box_pushing {
@@ -48,34 +51,43 @@ enum OrientationType {
   kInvalid = 4
 };
 
+// When not fully-observable, the number of observations (taken from Seuken &
+// Zilberstein '12): empty field, wall, other agent, small box, large box.
+enum ObservationType {
+  kEmptyFieldObs,
+  kWallObs,
+  kOtherAgentObs,
+  kSmallBoxObs,
+  kBigBoxObs
+};
+constexpr int kNumObservations = 5;
+
 // Different actions used by the agent.
 enum class ActionType { kTurnLeft, kTurnRight, kMoveForward, kStay };
 
 class CoopBoxPushingState : public SimMoveState {
  public:
-  CoopBoxPushingState(int horizon);
+  CoopBoxPushingState(std::shared_ptr<const Game> game, int horizon,
+                      bool fully_observable);
 
-  std::string ActionToString(int player, Action action) const override;
+  std::string ActionToString(Player player, Action action) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
   std::vector<double> Rewards() const override;
-  std::string InformationState(int player) const {
-    SPIEL_CHECK_GE(player, 0);
-    SPIEL_CHECK_LT(player, num_players_);
-    return absl::StrCat("Observing player: ", player, "\n", ToString());
-  }
-  void InformationStateAsNormalizedVector(int player,
-                                          std::vector<double>* values) const;
-  int CurrentPlayer() const override {
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
+  std::string ObservationString(Player player) const override;
+
+  Player CurrentPlayer() const override {
     return IsTerminal() ? kTerminalPlayerId : cur_player_;
   }
   std::unique_ptr<State> Clone() const override;
 
-  ActionsAndProbs ChanceOutcomes() const;
+  ActionsAndProbs ChanceOutcomes() const override;
 
   void Reset(const GameParameters& params);
-  std::vector<Action> LegalActions(int player) const override;
+  std::vector<Action> LegalActions(Player player) const override;
 
  protected:
   void DoApplyAction(Action action) override;
@@ -83,24 +95,30 @@ class CoopBoxPushingState : public SimMoveState {
 
  private:
   void SetField(std::pair<int, int> coord, char v);
-  void SetPlayer(std::pair<int, int> coord, int player,
+  void SetPlayer(std::pair<int, int> coord, Player player,
                  OrientationType orientation);
-  void SetPlayer(std::pair<int, int> coord, int player);
+  void SetPlayer(std::pair<int, int> coord, Player player);
   void AddReward(double reward);
   char field(std::pair<int, int> coord) const;
   void ResolveMoves();
-  void MoveForward(int player);
+  void MoveForward(Player player);
   bool InBounds(std::pair<int, int> coord) const;
-  bool SameAsPlayer(std::pair<int, int> coord, int player) const;
-  int ObservationPlane(std::pair<int, int> coord, int player) const;
+  bool SameAsPlayer(std::pair<int, int> coord, Player player) const;
+
+  // Partial observation of the specific agent.
+  ObservationType PartialObservation(Player player) const;
+
+  // Observation planes for the fully-observable case.
+  int ObservationPlane(std::pair<int, int> coord, Player player) const;
 
   // Fields sets to bad/invalid values. Use Game::NewInitialState().
   double total_rewards_ = -1;
-  int horizon_ = -1;     // Limit on the total number of moves.
-  int cur_player_ = -1;  // Could be chance's turn.
+  int horizon_ = -1;  // Limit on the total number of moves.
+  Player cur_player_ = kSimultaneousPlayerId;
   int total_moves_ = 0;
-  int initiative_;  // 0 = player initiative+1 goes first.
+  int initiative_;  // player id of player to resolve actions first.
   bool win_;        // True if agents push the big box to the goal.
+  bool fully_observable_;
 
   // Most recent rewards.
   double reward_;
@@ -125,17 +143,17 @@ class CoopBoxPushingGame : public SimMoveGame {
   int NumPlayers() const override;
   double MinUtility() const override;
   double MaxUtility() const override;
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new CoopBoxPushingGame(*this));
-  }
-  std::vector<int> InformationStateNormalizedVectorShape() const override;
+  std::vector<int> ObservationTensorShape() const override;
   int MaxGameLength() const override { return horizon_; }
+  // TODO: verify whether this bound is tight and/or tighten it.
+  int MaxChanceNodesInHistory() const override { return MaxGameLength(); }
 
  private:
   int horizon_;
+  bool fully_observable_;
 };
 
 }  // namespace coop_box_pushing
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_COOP_BOX_PUSHING
+#endif  // OPEN_SPIEL_GAMES_COOP_BOX_PUSHING

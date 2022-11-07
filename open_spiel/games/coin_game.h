@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_COIN_GAME_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_COIN_GAME_H_
+#ifndef OPEN_SPIEL_GAMES_COIN_GAME_H_
+#define OPEN_SPIEL_GAMES_COIN_GAME_H_
 
+#include <memory>
 #include <set>
 
 #include "open_spiel/spiel.h"
@@ -67,19 +68,19 @@ struct Setup {
 
 class CoinState : public State {
  public:
-  explicit CoinState(const CoinGame& parent_game);
+  explicit CoinState(std::shared_ptr<const Game> game);
   CoinState(const CoinState&) = default;
 
-  int CurrentPlayer() const override;
+  Player CurrentPlayer() const override;
   std::vector<Action> LegalActions() const override;
-  std::string ActionToString(int player, Action action_id) const override;
+  std::string ActionToString(Player player, Action action_id) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
   std::unique_ptr<State> Clone() const override;
 
   ActionsAndProbs ChanceOutcomes() const override;
-  std::string Observation(int player) const override;
+  std::string ObservationString(Player player) const override;
 
  protected:
   void DoApplyAction(Action action) override;
@@ -90,8 +91,8 @@ class CoinState : public State {
   char GetField(Location loc) const;
   void SetField(Location loc, char symbol);
   bool InBounds(Location loc) const;
-  int GetPlayerCoinCount(int player, int coin_color) const;
-  void IncPlayerCoinCount(int player, int coin_color);
+  int GetPlayerCoinCount(Player player, int coin_color) const;
+  void IncPlayerCoinCount(Player player, int coin_color);
 
   void PrintCoinsCollected(std::ostream& out) const;
   void PrintPreferences(std::ostream& out) const;
@@ -103,9 +104,11 @@ class CoinState : public State {
   void ApplyAssignPreferenceAction(Action coin_color);
   void ApplyPlayAction(Action move);
 
-  const CoinGame& game_;
+  const CoinGame& parent_game_;
+
   Setup setup_;
-  int cur_player_ = kChancePlayerId;  // Chance player for setting up the game.
+  Player cur_player_ =
+      kChancePlayerId;  // Chance player for setting up the game.
   int total_moves_ = 0;
   std::vector<int> player_preferences_;
   std::vector<Location> player_location_;
@@ -121,12 +124,14 @@ class CoinGame : public Game {
   explicit CoinGame(const GameParameters& params);
 
   int NumDistinctActions() const override;
+  int MaxChanceOutcomes() const override;
   std::unique_ptr<State> NewInitialState() const override;
   int NumPlayers() const override { return num_players_; }
   double MaxUtility() const override;
   double MinUtility() const override;
-  std::unique_ptr<Game> Clone() const override;
   int MaxGameLength() const override;
+  // TODO: verify whether this bound is tight and/or tighten it.
+  int MaxChanceNodesInHistory() const override { return MaxGameLength(); }
 
   int NumRows() const { return num_rows_; }
   int NumColumns() const { return num_columns_; }
@@ -147,4 +152,4 @@ class CoinGame : public Game {
 }  // namespace coin_game
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_COIN_GAME_H_
+#endif  // OPEN_SPIEL_GAMES_COIN_GAME_H_

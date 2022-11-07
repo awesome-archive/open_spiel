@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,35 +19,38 @@
 #include <utility>
 #include <vector>
 
+#include "open_spiel/abseil-cpp/absl/algorithm/container.h"
+#include "open_spiel/game_parameters.h"
+#include "open_spiel/spiel_utils.h"
+#include "open_spiel/utils/tensor_view.h"
+
 namespace open_spiel {
 namespace havannah {
 namespace {
 
 // Facts about the game.
-const GameType kGameType{
-    /*short_name=*/"havannah",
-    /*long_name=*/"Havannah",
-    GameType::Dynamics::kSequential,
-    GameType::ChanceMode::kDeterministic,
-    GameType::Information::kPerfectInformation,
-    GameType::Utility::kZeroSum,
-    GameType::RewardModel::kTerminal,
-    /*max_num_players=*/2,
-    /*min_num_players=*/2,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/false,
-    /*provides_observation=*/true,
-    /*provides_observation_as_normalized_vector=*/true,
-    /*parameter_specification=*/
-    {
-        {"board_size",
-         GameType::ParameterSpec{GameParameter::Type::kInt, false}},
-        {"ansi_color_output",
-         GameType::ParameterSpec{GameParameter::Type::kBool, false}},
-    }};
+const GameType kGameType{/*short_name=*/"havannah",
+                         /*long_name=*/"Havannah",
+                         GameType::Dynamics::kSequential,
+                         GameType::ChanceMode::kDeterministic,
+                         GameType::Information::kPerfectInformation,
+                         GameType::Utility::kZeroSum,
+                         GameType::RewardModel::kTerminal,
+                         /*max_num_players=*/2,
+                         /*min_num_players=*/2,
+                         /*provides_information_state_string=*/true,
+                         /*provides_information_state_tensor=*/false,
+                         /*provides_observation_string=*/true,
+                         /*provides_observation_tensor=*/true,
+                         /*parameter_specification=*/
+                         {
+                             {"board_size", GameParameter(kDefaultBoardSize)},
+                             {"swap", GameParameter(false)},
+                             {"ansi_color_output", GameParameter(false)},
+                         }};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new HavannahGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new HavannahGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -150,15 +153,16 @@ std::string Move::ToString() const {
 int HavannahState::Cell::NumCorners() const { return kBitsSetTable64[corner]; }
 int HavannahState::Cell::NumEdges() const { return kBitsSetTable64[edge]; }
 
-HavannahState::HavannahState(int board_size, bool ansi_color_output)
-    : State((board_size * 2 - 1) * (board_size * 2 - 1),  // Diameter squared.
-            kNumPlayers),
+HavannahState::HavannahState(std::shared_ptr<const Game> game, int board_size,
+                             bool ansi_color_output, bool allow_swap)
+    : State(game),
       board_size_(board_size),
       board_diameter_(board_size * 2 - 1),
       valid_cells_((board_size * 2 - 1) * (board_size * 2 - 1) -
                    board_size * (board_size - 1)),  // diameter^2 - corners
-      neighbors(get_neighbors(board_size)),
-      ansi_color_output_(ansi_color_output) {
+      neighbors_(get_neighbors(board_size)),
+      ansi_color_output_(ansi_color_output),
+      allow_swap_(allow_swap) {
   board_.resize(board_diameter_ * board_diameter_);
   for (int i = 0; i < board_.size(); i++) {
     Move m = ActionToMove(i);
@@ -175,17 +179,27 @@ Move HavannahState::ActionToMove(Action action_id) const {
 std::vector<Action> HavannahState::LegalActions() const {
   // Can move in any empty cell.
   std::vector<Action> moves;
+  if (IsTerminal()) return {};
   moves.reserve(board_.size() - moves_made_);
   for (int cell = 0; cell < board_.size(); ++cell) {
     if (board_[cell].player == kPlayerNone) {
       moves.push_back(cell);
     }
   }
+  if (AllowSwap()) {  // The second move is allowed to replace the first one.
+    moves.push_back(last_move_.xy);
+    absl::c_sort(moves);
+  }
   return moves;
 }
 
-std::string HavannahState::ActionToString(int player, Action action_id) const {
+std::string HavannahState::ActionToString(Player player,
+                                          Action action_id) const {
   return ActionToMove(action_id).ToString();
+}
+
+bool HavannahState::AllowSwap() const {
+  return allow_swap_ && moves_made_ == 1 && current_player_ == kPlayer2;
 }
 
 std::string HavannahState::ToString() const {
@@ -270,44 +284,63 @@ std::vector<double> HavannahState::Returns() const {
   return {0, 0};  // Unfinished
 }
 
-std::string HavannahState::InformationState(int player) const {
+std::string HavannahState::InformationStateString(Player player) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
   return HistoryString();
 }
 
-std::string HavannahState::Observation(int player) const {
+std::string HavannahState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   return ToString();
 }
 
-void HavannahState::ObservationAsNormalizedVector(
-    int player, std::vector<double>* values) const {
+int PlayerRelative(HavannahPlayer state, Player current) {
+  switch (state) {
+    case kPlayer1:
+      return current == 0 ? 0 : 1;
+    case kPlayer2:
+      return current == 1 ? 0 : 1;
+    case kPlayerNone:
+      return 2;
+    default:
+      SpielFatalError("Unknown player type.");
+  }
+}
+
+void HavannahState::ObservationTensor(Player player,
+                                      absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
 
-  std::fill(values->begin(), values->end(), 0.);
-  values->resize(board_.size() * kCellStates, 0.);
+  TensorView<2> view(values, {kCellStates, static_cast<int>(board_.size())},
+                     true);
   for (int i = 0; i < board_.size(); ++i) {
-    if (board_[i].player != kPlayerInvalid) {
-      (*values)[board_.size() * static_cast<int>(board_[i].player) + i] = 1.0;
+    if (board_[i].player < kCellStates) {
+      view[{PlayerRelative(board_[i].player, player), i}] = 1.0;
     }
   }
 }
 
 void HavannahState::DoApplyAction(Action action) {
-  SPIEL_CHECK_EQ(board_[action].player, kPlayerNone);
   SPIEL_CHECK_EQ(outcome_, kPlayerNone);
 
   Move move = ActionToMove(action);
   SPIEL_CHECK_TRUE(move.OnBoard());
 
-  last_move_ = move;
+  if (last_move_ == move) {
+    SPIEL_CHECK_TRUE(AllowSwap());
+  } else {
+    SPIEL_CHECK_EQ(board_[move.xy].player, kPlayerNone);
+    moves_made_++;
+    last_move_ = move;
+  }
   board_[move.xy].player = current_player_;
-  moves_made_++;
 
   bool alreadyjoined = false;  // Useful for finding rings.
   bool skip = false;
-  for (const Move& m : neighbors[move.xy]) {
+  for (const Move& m : neighbors_[move.xy]) {
     if (skip) {
       skip = false;
     } else if (m.OnBoard()) {
@@ -376,15 +409,10 @@ bool HavannahState::CheckRingDFS(const Move& move, int left, int right) {
   bool success = false;
   for (int i = left; !success && i <= right; i++) {
     int dir = (i + 6) % 6;  // Normalize.
-    success = CheckRingDFS(neighbors[move.xy][dir], dir - 1, dir + 1);
+    success = CheckRingDFS(neighbors_[move.xy][dir], dir - 1, dir + 1);
   }
   c.mark = false;
   return success;
-}
-
-void HavannahState::UndoAction(int player, Action move) {
-  SpielFatalError("HavannahState::UndoAction Not Implemented");
-  // TODO: Implement this by replaying the game.
 }
 
 std::unique_ptr<State> HavannahState::Clone() const {
@@ -393,8 +421,9 @@ std::unique_ptr<State> HavannahState::Clone() const {
 
 HavannahGame::HavannahGame(const GameParameters& params)
     : Game(kGameType, params),
-      board_size_(ParameterValue<int>("board_size", kDefaultBoardSize)),
-      ansi_color_output_(ParameterValue<bool>("ansi_color_output", false)) {}
+      board_size_(ParameterValue<int>("board_size")),
+      ansi_color_output_(ParameterValue<bool>("ansi_color_output")),
+      allow_swap_(ParameterValue<bool>("swap")) {}
 
 }  // namespace havannah
 }  // namespace open_spiel

@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@
   Example:
 
   game = pyspiel.load_game("matrix_pd")
-  payoff_tensor = utils.nfg_to_ndarray(game)
+  payoff_tensor = utils.game_payoffs_array(game)
   dyn = dynamics.MultiPopulationDynamics(payoff_tensor, dynamics.replicator)
 
   ax = plt.subplot(projection="2x2")
@@ -386,6 +386,9 @@ class Dynamics3x3Axes(axes.Axes):
     Args:
       points: Points in policy space.
       **kwargs: Additional keyword arguments passed on to `Axes.plot`.
+
+    Returns:
+      The line plot.
     """
     points = np.array(points)
     assert points.shape[1] == 3
@@ -399,6 +402,9 @@ class Dynamics3x3Axes(axes.Axes):
     Args:
       points: Points in policy space.
       **kwargs: Additional keyword arguments passed on to `Axes.scatter`.
+
+    Returns:
+      The scatter plot.
     """
     points = np.array(points)
     assert points.shape[1] == 3
@@ -497,14 +503,14 @@ class Dynamics3x3Axes(axes.Axes):
                  **kwargs):
     """Visualizes the dynamics as a streamline plot.
 
-    Mimics the visuales of `Axes.streamplot` for simplex plots.
+    Mimics the visuals of `Axes.streamplot` for simplex plots.
 
     Args:
       dynamics: Population dynamics of type `dynamics.SinglePopulationDynamics`.
       initial_points: Starting points for streamlines
       dt: Integration step.
       density: Controls the density of streamlines in the plot.
-      min_length: Streamslines with length < min_length will be discarded.
+      min_length: Streamlines with length < min_length will be discarded.
       linewidth: In `{None, float, "velocity"}`, optional, default: None. If
         `linewidth="velocity"`, line width is scaled by the velocity of the
         dynamics. Defaults to `rcParams` if `linewidth=None`.
@@ -526,7 +532,7 @@ class Dynamics3x3Axes(axes.Axes):
                                  [eps / 2., eps / 2., 1. - eps]])
       initial_points = np.vstack(
           (initial_points, utils.sample_from_simplex(100)))
-      # TODO: add heuristic for initial points
+      # TODO(author10): add heuristic for initial points
 
     else:
       initial_points = np.array(initial_points)

@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,10 +14,13 @@
 
 #include "open_spiel/matrix_game.h"
 
-#include <algorithm>
-#include <iomanip>
-#include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
+#include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
+#include "open_spiel/abseil-cpp/absl/strings/str_join.h"
+#include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 
 namespace open_spiel {
@@ -58,8 +61,9 @@ GameType::Utility GetUtilityType(const std::vector<double>& row_player_utils,
 }
 }  // namespace
 
-MatrixState::MatrixState(const MatrixGame& game)
-    : NFGState(game.NumDistinctActions(), /*num_players=*/2), game_(game) {}
+MatrixState::MatrixState(std::shared_ptr<const Game> game)
+    : NFGState(game),
+      matrix_game_(static_cast<const MatrixGame*>(game.get())) {}
 
 std::string MatrixState::ToString() const {
   std::string result = "";
@@ -77,10 +81,10 @@ std::string MatrixState::ToString() const {
     absl::StrAppend(&result, ActionToString(1, move), " ");
   }
   absl::StrAppend(&result, "\nUtility matrix:\n");
-  for (int r = 0; r < game_.NumRows(); r++) {
-    for (int c = 0; c < game_.NumCols(); c++) {
-      absl::StrAppend(&result, game_.RowUtility(r, c), ",",
-                      game_.ColUtility(r, c), " ");
+  for (int r = 0; r < matrix_game_->NumRows(); r++) {
+    for (int c = 0; c < matrix_game_->NumCols(); c++) {
+      absl::StrAppend(&result, matrix_game_->RowUtility(r, c), ",",
+                      matrix_game_->ColUtility(r, c), " ");
     }
     absl::StrAppend(&result, "\n");
   }
@@ -88,7 +92,7 @@ std::string MatrixState::ToString() const {
 }
 
 std::unique_ptr<State> MatrixGame::NewInitialState() const {
-  return std::unique_ptr<State>(new MatrixState(*this));
+  return std::unique_ptr<State>(new MatrixState(shared_from_this()));
 }
 
 std::vector<double> FlattenMatrix(
@@ -116,7 +120,7 @@ std::vector<double> FlattenMatrix(
   return utilities;
 }
 
-std::unique_ptr<MatrixGame> CreateMatrixGame(
+std::shared_ptr<const MatrixGame> CreateMatrixGame(
     const std::vector<std::vector<double>>& row_player_utils,
     const std::vector<std::vector<double>>& col_player_utils) {
   SPIEL_CHECK_GT(row_player_utils.size(), 0);
@@ -136,7 +140,7 @@ std::unique_ptr<MatrixGame> CreateMatrixGame(
 
 // Create a matrix game with the specified utilities and row/column names.
 // Utilities must be in row-major form.
-std::unique_ptr<MatrixGame> CreateMatrixGame(
+std::shared_ptr<const MatrixGame> CreateMatrixGame(
     const std::string& short_name, const std::string& long_name,
     const std::vector<std::string>& row_names,
     const std::vector<std::string>& col_names,
@@ -148,7 +152,16 @@ std::unique_ptr<MatrixGame> CreateMatrixGame(
   std::vector<double> flat_col_utils = FlattenMatrix(col_player_utils);
   SPIEL_CHECK_EQ(flat_row_utils.size(), rows * columns);
   SPIEL_CHECK_EQ(flat_col_utils.size(), rows * columns);
+  return CreateMatrixGame(short_name, long_name, row_names, col_names,
+                          flat_row_utils, flat_col_utils);
+}
 
+std::shared_ptr<const MatrixGame> CreateMatrixGame(
+    const std::string& short_name, const std::string& long_name,
+    const std::vector<std::string>& row_names,
+    const std::vector<std::string>& col_names,
+    const std::vector<double>& flat_row_utils,
+    const std::vector<double>& flat_col_utils) {
   // Detect the utility type from the utilities.
   GameType::Utility utility = GetUtilityType(flat_row_utils, flat_col_utils);
 
@@ -162,12 +175,14 @@ std::unique_ptr<MatrixGame> CreateMatrixGame(
       GameType::RewardModel::kTerminal,
       /*max_num_players=*/2,
       /*min_num_players=*/2,
-      /*provides_information_state=*/true,
-      /*provides_information_state_as_normalized_vector=*/true,
+      /*provides_information_state_string=*/true,
+      /*provides_information_state_tensor=*/true,
+      /*provides_observation_string=*/true,
+      /*provides_observation_tensor=*/true,
       /*parameter_specification=*/{}  // no parameters
   };
 
-  return std::unique_ptr<MatrixGame>(new MatrixGame(
+  return std::shared_ptr<const MatrixGame>(new MatrixGame(
       game_type, {}, row_names, col_names, flat_row_utils, flat_col_utils));
 }
 

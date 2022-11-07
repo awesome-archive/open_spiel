@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +14,10 @@
 
 """Policy gradient agents trained and evaluated on Kuhn Poker."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from absl import app
 from absl import flags
 from absl import logging
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python import policy
 from open_spiel.python import rl_environment
@@ -32,7 +28,8 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("num_episodes", int(1e6), "Number of train episodes.")
 flags.DEFINE_integer("eval_every", int(1e4), "Eval agents every x episodes.")
-flags.DEFINE_enum("loss_str", "rpg", ["rpg", "qpg", "rm"], "PG loss to use.")
+flags.DEFINE_enum("loss_str", "rpg", ["a2c", "rpg", "qpg", "rm"],
+                  "PG loss to use.")
 
 
 class PolicyGradientPolicies(policy.Policy):
@@ -51,7 +48,7 @@ class PolicyGradientPolicies(policy.Policy):
 
     self._obs["current_player"] = cur_player
     self._obs["info_state"][cur_player] = (
-        state.information_state_as_normalized_vector(cur_player))
+        state.information_state_tensor(cur_player))
     self._obs["legal_actions"][cur_player] = legal_actions
 
     info_state = rl_environment.TimeStep(

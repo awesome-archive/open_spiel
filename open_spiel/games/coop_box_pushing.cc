@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +14,17 @@
 
 #include "open_spiel/games/coop_box_pushing.h"
 
+#include <cstddef>
 #include <memory>
 #include <utility>
 
 #include "open_spiel/spiel.h"
+#include "open_spiel/utils/tensor_view.h"
 
 namespace open_spiel {
 namespace coop_box_pushing {
 namespace {
+
 // Valid characters: <>^v .bB
 // However first 4 characters each have a player (0 or 1) attached to them
 // So, 4 + 4 + 3 = 11
@@ -56,6 +59,7 @@ constexpr double kBigBoxReward = 100;
 
 // Default parameters.
 constexpr int kDefaultHorizon = 100;
+constexpr bool kDefaultFullyObservable = false;
 
 constexpr std::array<int, 4> row_offsets = {{-1, 0, 1, 0}};
 constexpr std::array<int, 4> col_offsets = {{0, 1, 0, -1}};
@@ -65,21 +69,22 @@ const GameType kGameType{
     /*short_name=*/"coop_box_pushing",
     /*long_name=*/"Cooperative Box Pushing",
     GameType::Dynamics::kSimultaneous,
-    GameType::ChanceMode::kDeterministic,
-    GameType::Information::kPerfectInformation,
+    GameType::ChanceMode::kExplicitStochastic,
+    GameType::Information::kImperfectInformation,
     GameType::Utility::kIdentical,
     GameType::RewardModel::kRewards,
     /*max_num_players=*/2,
     /*min_num_players=*/2,
-    /*provides_information_state=*/true,
-    /*provides_information_state_as_normalized_vector=*/true,
-    /*provides_observation=*/false,
-    /*provides_observation_as_normalized_vector=*/false,
+    /*provides_information_state_string=*/false,
+    /*provides_information_state_tensor=*/false,
+    /*provides_observation_string=*/true,
+    /*provides_observation_tensor=*/true,
     /*parameter_specification=*/
-    {{"horizon", {GameParameter::Type::kInt, false}}}};
+    {{"fully_observable", GameParameter(kDefaultFullyObservable)},
+     {"horizon", GameParameter(kDefaultHorizon)}}};
 
-std::unique_ptr<Game> Factory(const GameParameters& params) {
-  return std::unique_ptr<Game>(new CoopBoxPushingGame(params));
+std::shared_ptr<const Game> Factory(const GameParameters& params) {
+  return std::shared_ptr<const Game>(new CoopBoxPushingGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -145,14 +150,16 @@ std::pair<int, int> NextCoord(std::pair<int, int> coord, int direction) {
 }
 }  // namespace
 
-CoopBoxPushingState::CoopBoxPushingState(int horizon)
-    : SimMoveState(kNumDistinctActions, kNumPlayers),
+CoopBoxPushingState::CoopBoxPushingState(std::shared_ptr<const Game> game,
+                                         int horizon, bool fully_observable)
+    : SimMoveState(game),
       total_rewards_(0),
       horizon_(horizon),
       cur_player_(kSimultaneousPlayerId),
       total_moves_(0),
       initiative_(0),
       win_(false),
+      fully_observable_(fully_observable),
       reward_(0),
       action_status_(
           {ActionStatusType::kUnresolved, ActionStatusType::kUnresolved}) {
@@ -171,7 +178,7 @@ CoopBoxPushingState::CoopBoxPushingState(int horizon)
   SetPlayer({6, 6}, 1, OrientationType::kWest);
 }
 
-std::string CoopBoxPushingState::ActionToString(int player,
+std::string CoopBoxPushingState::ActionToString(Player player,
                                                 Action action) const {
   return ::open_spiel::coop_box_pushing::ActionToString(action);
 }
@@ -180,14 +187,14 @@ void CoopBoxPushingState::SetField(std::pair<int, int> coord, char v) {
   field_[coord.first * kCols + coord.second] = v;
 }
 
-void CoopBoxPushingState::SetPlayer(std::pair<int, int> coord, int player,
+void CoopBoxPushingState::SetPlayer(std::pair<int, int> coord, Player player,
                                     OrientationType orientation) {
   SetField(coord, ToCharacter(orientation));
   player_coords_[player] = coord;
   player_orient_[player] = orientation;
 }
 
-void CoopBoxPushingState::SetPlayer(std::pair<int, int> coord, int player) {
+void CoopBoxPushingState::SetPlayer(std::pair<int, int> coord, Player player) {
   SetPlayer(coord, player, player_orient_[player]);
 }
 
@@ -208,7 +215,7 @@ bool CoopBoxPushingState::InBounds(std::pair<int, int> coord) const {
           coord.second < kCols);
 }
 
-void CoopBoxPushingState::MoveForward(int player) {
+void CoopBoxPushingState::MoveForward(Player player) {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LE(player, 1);
 
@@ -253,9 +260,6 @@ void CoopBoxPushingState::AddReward(double reward) {
 }
 
 void CoopBoxPushingState::ResolveMoves() {
-  // Set the reward to 0, as it will be changed as a result of resolving moves.
-  reward_ = 0;
-
   // Check for successful move of the big box.
   if (moves_[0] == ActionType::kMoveForward &&
       moves_[1] == ActionType::kMoveForward &&
@@ -323,7 +327,8 @@ void CoopBoxPushingState::ResolveMoves() {
 }
 
 void CoopBoxPushingState::DoApplyAction(Action action) {
-  if (IsSimultaneousNode()) ApplyFlatJointAction(action);
+  reward_ = 0;
+  if (IsSimultaneousNode()) return ApplyFlatJointAction(action);
 
   if (action == kChanceSuccess) {
     // Success.
@@ -354,9 +359,18 @@ void CoopBoxPushingState::DoApplyAction(Action action) {
   }
 }
 
-std::vector<Action> CoopBoxPushingState::LegalActions(int player) const {
+std::vector<Action> CoopBoxPushingState::LegalActions(Player player) const {
   if (player == kSimultaneousPlayerId) {
     return LegalFlatJointActions();
+  } else if (IsTerminal()) {
+    return {};
+  } else if (IsChanceNode()) {
+    if (action_status_[0] == ActionStatusType::kUnresolved ||
+        action_status_[1] == ActionStatusType::kUnresolved) {
+      return {0, 1};
+    } else {
+      return {2, 3};
+    }
   }
   // All the actions are legal at every state.
   return {0, 1, 2, 3};
@@ -394,6 +408,57 @@ std::string CoopBoxPushingState::ToString() const {
   return result;
 }
 
+ObservationType CoopBoxPushingState::PartialObservation(Player player) const {
+  std::pair<int, int> adj_coord = {
+      player_coords_[player].first + row_offsets[player_orient_[player]],
+      player_coords_[player].second + col_offsets[player_orient_[player]]};
+
+  if (!InBounds(adj_coord)) {
+    return kWallObs;
+  } else {
+    switch (field(adj_coord)) {
+      case kField:
+        return kEmptyFieldObs;
+      case kLeft:
+      case kRight:
+      case kUp:
+      case kDown:
+        return kOtherAgentObs;
+      case kSmallBox:
+        return kSmallBoxObs;
+      case kBigBox:
+        return kBigBoxObs;
+      default:
+        SpielFatalError("Unrecognized field char: " +
+                        std::to_string(field(adj_coord)));
+    }
+  }
+}
+
+std::string CoopBoxPushingState::ObservationString(Player player) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
+  if (fully_observable_) {
+    return ToString();
+  } else {
+    ObservationType obs = PartialObservation(player);
+    switch (obs) {
+      case kEmptyFieldObs:
+        return "field";
+      case kWallObs:
+        return "wall";
+      case kOtherAgentObs:
+        return "other agent";
+      case kSmallBoxObs:
+        return "small box";
+      case kBigBoxObs:
+        return "big box";
+      default:
+        SpielFatalError("Unrecognized observation!");
+    }
+  }
+}
+
 bool CoopBoxPushingState::IsTerminal() const {
   return (total_moves_ >= horizon_ || win_);
 }
@@ -409,12 +474,12 @@ std::vector<double> CoopBoxPushingState::Rewards() const {
 }
 
 bool CoopBoxPushingState::SameAsPlayer(std::pair<int, int> coord,
-                                       int player) const {
+                                       Player player) const {
   return coord == player_coords_[player];
 }
 
 int CoopBoxPushingState::ObservationPlane(std::pair<int, int> coord,
-                                          int player) const {
+                                          Player player) const {
   int plane = 0;
   switch (field(coord)) {
     case kField:
@@ -448,17 +513,25 @@ int CoopBoxPushingState::ObservationPlane(std::pair<int, int> coord,
   return plane;
 }
 
-void CoopBoxPushingState::InformationStateAsNormalizedVector(
-    int player, std::vector<double>* values) const {
-  values->resize(kCellStates * kRows * kCols);
-  int plane_size = kRows * kCols;
+void CoopBoxPushingState::ObservationTensor(Player player,
+                                            absl::Span<float> values) const {
+  SPIEL_CHECK_GE(player, 0);
+  SPIEL_CHECK_LT(player, num_players_);
+  if (fully_observable_) {
+    TensorView<3> view(values, {kCellStates, kRows, kCols}, true);
 
-  for (int r = 0; r < kRows; r++) {
-    for (int c = 0; c < kCols; c++) {
-      int plane = ObservationPlane({r, c}, player);
-      SPIEL_CHECK_TRUE(plane >= 0 && plane < kCellStates);
-      (*values)[plane * plane_size + r * kCols + c] = 1.0;
+    for (int r = 0; r < kRows; r++) {
+      for (int c = 0; c < kCols; c++) {
+        int plane = ObservationPlane({r, c}, player);
+        SPIEL_CHECK_TRUE(plane >= 0 && plane < kCellStates);
+        view[{plane, r, c}] = 1.0;
+      }
     }
+  } else {
+    SPIEL_CHECK_EQ(values.size(), kNumObservations);
+    std::fill(values.begin(), values.end(), 0);
+    ObservationType obs = PartialObservation(player);
+    values[obs] = 1;
   }
 }
 
@@ -468,11 +541,15 @@ std::unique_ptr<State> CoopBoxPushingState::Clone() const {
 
 CoopBoxPushingGame::CoopBoxPushingGame(const GameParameters& params)
     : SimMoveGame(kGameType, params),
-      horizon_(ParameterValue<int>("horizon", kDefaultHorizon)) {}
+      horizon_(ParameterValue<int>("horizon")),
+      fully_observable_(ParameterValue<bool>("fully_observable")) {}
 
-std::vector<int> CoopBoxPushingGame::InformationStateNormalizedVectorShape()
-    const {
-  return {kCellStates, kRows, kCols};
+std::vector<int> CoopBoxPushingGame::ObservationTensorShape() const {
+  if (fully_observable_) {
+    return {kCellStates, kRows, kCols};
+  } else {
+    return {kNumObservations};
+  }
 }
 
 int CoopBoxPushingGame::NumDistinctActions() const {
@@ -482,7 +559,8 @@ int CoopBoxPushingGame::NumDistinctActions() const {
 int CoopBoxPushingGame::NumPlayers() const { return kNumPlayers; }
 
 std::unique_ptr<State> CoopBoxPushingGame::NewInitialState() const {
-  std::unique_ptr<State> state(new CoopBoxPushingState(horizon_));
+  std::unique_ptr<State> state(
+      new CoopBoxPushingState(shared_from_this(), horizon_, fully_observable_));
   return state;
 }
 

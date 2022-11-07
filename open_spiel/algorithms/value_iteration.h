@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_VALUE_ITERATION_H_
-#define THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_VALUE_ITERATION_H_
+#ifndef OPEN_SPIEL_ALGORITHMS_VALUE_ITERATION_H_
+#define OPEN_SPIEL_ALGORITHMS_VALUE_ITERATION_H_
 
 #include "open_spiel/algorithms/get_all_states.h"
 #include "open_spiel/spiel.h"
@@ -36,4 +36,4 @@ std::map<std::string, double> ValueIteration(const Game& game, int depth_limit,
 }  // namespace algorithms
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_VALUE_ITERATION_H_
+#endif  // OPEN_SPIEL_ALGORITHMS_VALUE_ITERATION_H_

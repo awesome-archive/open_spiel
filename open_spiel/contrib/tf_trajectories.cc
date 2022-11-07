@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,9 +21,9 @@
 #include <random>
 #include <vector>
 
+#include "open_spiel/abseil-cpp/absl/random/uniform_int_distribution.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_join.h"
-#include "third_party/eigen3/unsupported/Eigen/CXX11/src/Tensor/TensorMap.h"
-#include "open_spiel/spiel_optional.h"
+#include "unsupported/Eigen/CXX11/Tensor"
 #include "open_spiel/spiel_utils.h"
 
 namespace open_spiel {
@@ -39,11 +39,11 @@ TFBatchTrajectoryRecorder::TFBatchTrajectoryRecorder(
       states_(),
       terminal_flags_(std::vector<int>(batch_size, 0)),
       num_terminals_(0),
-      game_(game.Clone()),
+      game_(game.shared_from_this()),
       graph_filename_(graph_filename),
       rng_(),
       dist_(0.0, 1.0),
-      flat_input_size_(game_->InformationStateNormalizedVectorSize()),
+      flat_input_size_(game_->ObservationTensorSize()),
       num_actions_(game_->NumDistinctActions()) {
   TF_CHECK_OK(
       ReadBinaryProto(tf::Env::Default(), graph_filename_, &graph_def_));
@@ -61,7 +61,7 @@ void TFBatchTrajectoryRecorder::SampleChance(int idx) {
   while (states_[idx]->IsChanceNode()) {
     std::vector<std::pair<open_spiel::Action, double>> outcomes =
         states_[idx]->ChanceOutcomes();
-    Action action = open_spiel::SampleChanceOutcome(outcomes, dist_(rng_));
+    Action action = open_spiel::SampleAction(outcomes, dist_(rng_)).first;
     states_[idx]->ApplyAction(action);
   }
 
@@ -83,7 +83,7 @@ void TFBatchTrajectoryRecorder::GetNextStatesUniform() {
   for (int b = 0; b < batch_size_; ++b) {
     if (!terminal_flags_[b]) {
       std::vector<Action> actions = states_[b]->LegalActions();
-      std::uniform_int_distribution<> dist(0, actions.size() - 1);
+      absl::uniform_int_distribution<> dist(0, actions.size() - 1);
       Action action = actions[dist(rng_)];
       states_[b]->ApplyAction(action);
       SampleChance(b);
@@ -118,7 +118,7 @@ void TFBatchTrajectoryRecorder::FillInputsAndMasks() {
   TensorMap inputs_matrix = tf_inputs_.matrix<float>();
   TensorMap mask_matrix = tf_legal_mask_.matrix<float>();
 
-  std::vector<double> info_state_vector;
+  std::vector<float> info_state_vector(game_->ObservationTensorSize());
   for (int b = 0; b < batch_size_; ++b) {
     if (!terminal_flags_[b]) {
       std::vector<int> mask = states_[b]->LegalActionsMask();
@@ -127,8 +127,8 @@ void TFBatchTrajectoryRecorder::FillInputsAndMasks() {
         mask_matrix(b, a) = mask[a];
       }
 
-      states_[b]->InformationStateAsNormalizedVector(
-          states_[b]->CurrentPlayer(), &info_state_vector);
+      states_[b]->ObservationTensor(states_[b]->CurrentPlayer(),
+                                    absl::MakeSpan(info_state_vector));
       for (int i = 0; i < info_state_vector.size(); ++i) {
         inputs_matrix(b, i) = info_state_vector[i];
       }
@@ -138,7 +138,7 @@ void TFBatchTrajectoryRecorder::FillInputsAndMasks() {
 
 void TFBatchTrajectoryRecorder::ApplyActions() {
   std::vector<double> prob_dist(num_actions_, 0.0);
-  auto sampled_action = tf_outputs_[1].matrix<int64>();
+  auto sampled_action = tf_outputs_[1].matrix<tensorflow::int64>();
   for (int b = 0; b < batch_size_; ++b) {
     if (!terminal_flags_[b]) {
       Action action = sampled_action(b);

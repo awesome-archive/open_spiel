@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_HEX_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_HEX_H_
+#ifndef OPEN_SPIEL_GAMES_HEX_H_
+#define OPEN_SPIEL_GAMES_HEX_H_
 
 #include <array>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,16 +28,19 @@
 //
 // Parameters:
 //       "board_size"    int     size of the board   (default = 11)
+//       "num_cols"      int     number of columns (optional)
+//       "num_rows"      int     number of rows (optional)
 
 namespace open_spiel {
 namespace hex {
 
 // Constants.
-constexpr int kNumPlayers = 2;
-constexpr int kDefaultBoardSize = 11;
-constexpr int kMaxNeighbours = 6;  // Maximum number of neighbours for a cell
-constexpr int kCellStates = 1 + 4 * kNumPlayers;
-constexpr int kMinValueCellState = -4;
+inline constexpr int kNumPlayers = 2;
+inline constexpr int kDefaultBoardSize = 11;
+inline constexpr int kMaxNeighbours =
+    6;  // Maximum number of neighbours for a cell
+inline constexpr int kCellStates = 1 + 4 * kNumPlayers;
+inline constexpr int kMinValueCellState = -4;
 // State of a cell.
 // Describes if a cell is
 //   - empty, black or white
@@ -61,63 +65,65 @@ enum class CellState {
 // State of an in-play game.
 class HexState : public State {
  public:
-  HexState(int board_size);
+  HexState(std::shared_ptr<const Game> game, int num_cols, int num_rows);
 
   HexState(const HexState&) = default;
-  HexState& operator=(const HexState&) = default;
 
-  int CurrentPlayer() const override {
+  Player CurrentPlayer() const override {
     return IsTerminal() ? kTerminalPlayerId : current_player_;
   }
-  std::string ActionToString(int player, Action action_id) const override;
+  std::string ActionToString(Player player, Action action_id) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
-  std::string InformationState(int player) const override;
-  std::string Observation(int player) const override;
-  void ObservationAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string InformationStateString(Player player) const override;
+  std::string ObservationString(Player player) const override;
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
-  void UndoAction(int player, Action move) override;
   std::vector<Action> LegalActions() const override;
+
   CellState BoardAt(int cell) const { return board_[cell]; }
+  void ChangePlayer() { current_player_ = current_player_ == 0 ? 1 : 0; }
 
  protected:
   std::vector<CellState> board_;
   void DoApplyAction(Action move) override;
 
  private:
-  CellState PlayerAndActionToState(int player, Action move) const;
-  int current_player_ = 0;                         // Player zero goes first
+  CellState PlayerAndActionToState(Player player, Action move) const;
+  Player current_player_ = 0;                      // Player zero goes first
   double result_black_perspective_ = 0;            // 1 if Black (player 0) wins
   std::vector<int> AdjacentCells(int cell) const;  // Cells adjacent to cell
-  const int board_size_;
+
+  const int num_cols_;  // x
+  const int num_rows_;  // y
 };
 
 // Game object.
 class HexGame : public Game {
  public:
   explicit HexGame(const GameParameters& params);
-  int NumDistinctActions() const override { return board_size_ * board_size_; }
+  int NumDistinctActions() const override { return num_cols_ * num_rows_; }
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(new HexState(board_size_));
+    return std::unique_ptr<State>(
+        new HexState(shared_from_this(), num_cols_, num_rows_));
   }
   int NumPlayers() const override { return kNumPlayers; }
   double MinUtility() const override { return -1; }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return 1; }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new HexGame(*this));
+  std::vector<int> ObservationTensorShape() const override {
+    return {kCellStates, num_cols_, num_rows_};
   }
-  std::vector<int> ObservationNormalizedVectorShape() const override {
-    return {kCellStates, board_size_, board_size_};
-  }
-  int MaxGameLength() const { return board_size_ * board_size_; }
+  int MaxGameLength() const override { return num_cols_ * num_rows_; }
 
  private:
-  const int board_size_;
+  const int num_cols_;
+  const int num_rows_;
 };
 
+CellState PlayerToState(Player player);
 std::string StateToString(CellState state);
 
 inline std::ostream& operator<<(std::ostream& stream, const CellState& state) {
@@ -127,4 +133,4 @@ inline std::ostream& operator<<(std::ostream& stream, const CellState& state) {
 }  // namespace hex
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_HEX_H_
+#endif  // OPEN_SPIEL_GAMES_HEX_H_

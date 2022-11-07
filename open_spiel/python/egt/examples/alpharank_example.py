@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,10 +18,6 @@
     https://arxiv.org/abs/1903.01373
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from absl import app
 
 from open_spiel.python.algorithms import fictitious_play
@@ -33,8 +29,7 @@ import pyspiel
 
 def get_kuhn_poker_data(num_players=3):
   """Returns the kuhn poker data for the number of players specified."""
-  game = pyspiel.load_game('kuhn_poker',
-                           {'players': pyspiel.GameParameter(num_players)})
+  game = pyspiel.load_game('kuhn_poker', {'players': num_players})
   xfp_solver = fictitious_play.XFPSolver(game, save_oracles=True)
   for _ in range(3):
     xfp_solver.iteration()

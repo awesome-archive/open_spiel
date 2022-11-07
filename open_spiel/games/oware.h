@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_OWARE_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_OWARE_H_
+#ifndef OPEN_SPIEL_GAMES_OWARE_H_
+#define OPEN_SPIEL_GAMES_OWARE_H_
 
+#include <memory>
 #include <unordered_set>
 
 #include "open_spiel/games/oware/oware_board.h"
@@ -24,7 +25,7 @@
 // family of Mancala games. Several variations of the game exist. This
 // implementation uses the basic rules as described here:
 // https://en.wikipedia.org/wiki/Oware or here:
-// http://www.joansala.com/auale/rules/en/
+// http://www.joansala.com/auale/rules/en/.
 //
 // In particular if the opponent has no seeds, the current player must make a
 // move to give the opponent seeds. If no such move exists the game ends and the
@@ -34,55 +35,59 @@
 //
 // When the game reaches a state which occurred before, it ends and both players
 // collect the remaining seeds in their respective rows.
+//
+// Note: The Kalah game is also available separately in mancala.{h,cc}.
 
 namespace open_spiel {
 namespace oware {
 
-constexpr int kMinCapture = 2;
-constexpr int kMaxCapture = 3;
+inline constexpr int kMinCapture = 2;
+inline constexpr int kMaxCapture = 3;
 
-constexpr int kDefaultHousesPerPlayer = 6;
-constexpr int kDdefaultSeedsPerHouse = 4;
+inline constexpr int kDefaultHousesPerPlayer = 6;
+inline constexpr int kDdefaultSeedsPerHouse = 4;
 
 // Informed guess based on
 // https://mancala.fandom.com/wiki/Statistics
-constexpr int kMaxGameLength = 1000;
+inline constexpr int kMaxGameLength = 1000;
 
 class OwareState : public State {
  public:
-  OwareState(int num_houses_per_player, int num_seeds_per_house);
+  OwareState(std::shared_ptr<const Game> game, int num_houses_per_player,
+             int num_seeds_per_house);
 
   OwareState(const OwareState&) = default;
 
   // Custom board setup to support testing.
-  explicit OwareState(const OwareBoard& board);
+  explicit OwareState(std::shared_ptr<const Game> game,
+                      const OwareBoard& board);
 
-  int CurrentPlayer() const override {
+  Player CurrentPlayer() const override {
     return IsTerminal() ? kTerminalPlayerId : board_.current_player;
   }
 
   std::vector<Action> LegalActions() const override;
-  std::string ActionToString(int player, Action action_id) const override;
+  std::string ActionToString(Player player, Action action_id) const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
   std::unique_ptr<State> Clone() const override;
   const OwareBoard& Board() const { return board_; }
-  std::string Observation(int player) const override;
+  std::string ObservationString(Player player) const override;
 
   // The game board is provided as a vector, encoding the players' seeds
   // and their score, as a fraction of the number of total number of seeds in
   // the game. This provides an interface that can be used for neural network
   // training, although the given representation is not necessary the best
   // for that purpose.
-  void ObservationAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
 
  protected:
   void DoApplyAction(Action action) override;
 
  private:
-  void WritePlayerScore(std::ostringstream& out, int player) const;
+  void WritePlayerScore(std::ostringstream& out, Player player) const;
 
   // Collects the seeds from the given house and distributes them
   // counterclockwise, skipping the starting position in all cases.
@@ -114,11 +119,11 @@ class OwareState : public State {
     return LowerHouse(house) + num_houses_per_player_ - 1;
   }
 
-  int PlayerLowerHouse(int player) const {
+  int PlayerLowerHouse(Player player) const {
     return player * num_houses_per_player_;
   }
 
-  int PlayerUpperHouse(int player) const {
+  int PlayerUpperHouse(Player player) const {
     return player * num_houses_per_player_ + num_houses_per_player_ - 1;
   }
 
@@ -130,7 +135,7 @@ class OwareState : public State {
     return house % num_houses_per_player_;
   }
 
-  int ActionToHouse(int player, Action action) const {
+  int ActionToHouse(Player player, Action action) const {
     return player * num_houses_per_player_ + action;
   }
 
@@ -160,19 +165,16 @@ class OwareGame : public Game {
   explicit OwareGame(const GameParameters& params);
   int NumDistinctActions() const override { return num_houses_per_player_; }
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(
-        new OwareState(num_houses_per_player_, num_seeds_per_house_));
+    return std::unique_ptr<State>(new OwareState(
+        shared_from_this(), num_houses_per_player_, num_seeds_per_house_));
   }
   int NumPlayers() const override { return kNumPlayers; }
   double MinUtility() const override { return -1; }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return 1; }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new OwareGame(*this));
-  }
 
   int MaxGameLength() const override { return kMaxGameLength; }
-  std::vector<int> ObservationNormalizedVectorShape() const override;
+  std::vector<int> ObservationTensorShape() const override;
 
  private:
   const int num_houses_per_player_;
@@ -182,4 +184,4 @@ class OwareGame : public Game {
 }  // namespace oware
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_OWARE_H_
+#endif  // OPEN_SPIEL_GAMES_OWARE_H_

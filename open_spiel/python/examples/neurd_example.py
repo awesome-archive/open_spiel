@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,18 +20,14 @@ tracks the exact tabular average so that the average policy approaches an
 equilibrium (assuming the policy networks train well).
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from absl import app
 from absl import flags
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from open_spiel.python.algorithms import neurd
 import pyspiel
 
-tf.compat.v1.enable_eager_execution()
+tf.enable_eager_execution()
 
 FLAGS = flags.FLAGS
 
@@ -64,8 +60,7 @@ flags.DEFINE_boolean(
 
 
 def main(_):
-  game = pyspiel.load_game(FLAGS.game,
-                           {"players": pyspiel.GameParameter(FLAGS.players)})
+  game = pyspiel.load_game(FLAGS.game, {"players": FLAGS.players})
 
   models = []
   for _ in range(game.num_players()):

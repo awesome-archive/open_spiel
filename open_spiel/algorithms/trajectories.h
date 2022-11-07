@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_TRAJECTORIES_H_
-#define THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_TRAJECTORIES_H_
+#ifndef OPEN_SPIEL_ALGORITHMS_TRAJECTORIES_H_
+#define OPEN_SPIEL_ALGORITHMS_TRAJECTORIES_H_
 
-#include <limits>
+#include <stdint.h>
+
+#include <memory>
 #include <random>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -45,10 +48,10 @@ struct BatchedTrajectory {
   int batch_size;
 
   // Observations is an optional field that corresponds to the results of
-  // calling State::InformationStateAsNormalizedVector. Only one of observations
+  // calling State::InformationStateTensor. Only one of observations
   // and state_indices will be filled out for any given instance of
   // BatchedTrajectory.
-  std::vector<std::vector<std::vector<double>>> observations;
+  std::vector<std::vector<std::vector<float>>> observations;
 
   // The indices corresponding to the viewed state.
   std::vector<std::vector<int>> state_indices;
@@ -73,7 +76,7 @@ struct BatchedTrajectory {
 };
 
 // If include_full_observations is true, then we record the result of
-// open_spiel::State::InformationStateAsNormalizedVector(); otherwise, we store
+// open_spiel::State::InformationStateTensor(); otherwise, we store
 // the index (taken from state_to_index).
 BatchedTrajectory RecordTrajectory(
     const Game& game, const std::vector<TabularPolicy>& policies,
@@ -114,13 +117,13 @@ class TrajectoryRecorder {
   TrajectoryRecorder(const Game& game,
                      const std::unordered_map<std::string, int>& state_to_index,
                      int seed)
-      : game_(game.Clone()),
+      : game_(game.shared_from_this()),
         state_to_index_(state_to_index),
         rng_(std::mt19937(seed)) {}
 
   BatchedTrajectory RecordBatch(const std::vector<TabularPolicy>& policies,
                                 int batch_size, int max_unroll_length) {
-    bool include_full_observations = !state_to_index_.empty();
+    const bool include_full_observations = state_to_index_.empty();
     std::unique_ptr<State> root = game_->NewInitialState();
     return RecordBatchedTrajectory(*game_, policies, *root, state_to_index_,
                                    batch_size, include_full_observations, &rng_,
@@ -128,7 +131,7 @@ class TrajectoryRecorder {
   }
 
  private:
-  std::unique_ptr<Game> game_;
+  std::shared_ptr<const Game> game_;
 
   // Note: The key here depends on the game, and is implemented by the
   // StateKey method.
@@ -140,4 +143,4 @@ class TrajectoryRecorder {
 }  // namespace algorithms
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_TRAJECTORIES_H_
+#endif  // OPEN_SPIEL_ALGORITHMS_TRAJECTORIES_H_

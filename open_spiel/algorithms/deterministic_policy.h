@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_DETERMINISTIC_POLICY_H_
-#define THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_DETERMINISTIC_POLICY_H_
+#ifndef OPEN_SPIEL_ALGORITHMS_DETERMINISTIC_POLICY_H_
+#define OPEN_SPIEL_ALGORITHMS_DETERMINISTIC_POLICY_H_
+
+#include <stdint.h>
 
 #include <algorithm>
 #include <iterator>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -27,6 +30,10 @@
 
 namespace open_spiel {
 namespace algorithms {
+
+// Returns the number of deterministic policies for this player in this game,
+// if the number is less than 2^64-1. Otherwise, returns -1.
+int64_t NumDeterministicPolicies(const Game& game, Player player);
 
 // An simple container object used to store the legal actions (and chosen
 // action) for each information state.
@@ -62,17 +69,20 @@ class DeterministicTabularPolicy : public Policy {
  public:
   // Creates a deterministic policy and sets it to the specified policy.
   DeterministicTabularPolicy(
-      const Game& game, int player,
+      const Game& game, Player player,
       const std::unordered_map<std::string, Action> policy);
 
   // Creates a default deterministic policy, with all actions set to their first
   // legal action (index 0 in the legal actions list).
-  DeterministicTabularPolicy(const Game& game, int player);
+  DeterministicTabularPolicy(const Game& game, Player player);
 
   ActionsAndProbs GetStatePolicy(const std::string& info_state) const override;
   Action GetAction(const std::string& info_state) const;
 
-  // Determinstic policies are ordered. First, we define some order to the
+  // Returns the current deterministic policy as a TabularPolicy.
+  TabularPolicy GetTabularPolicy() const;
+
+  // Deterministic policies are ordered. First, we define some order to the
   // information states (which is the order defined by the legal_actions_map
   // for the game). Then the total order over policies is defined in a
   // "counting order according to their associated tuple (
@@ -98,13 +108,13 @@ class DeterministicTabularPolicy : public Policy {
   std::string ToString(const std::string& delimiter) const;
 
  private:
-  void CreateTable(const Game& game, int player);
+  void CreateTable(const Game& game, Player player);
 
-  std::unordered_map<std::string, LegalsWithIndex> table_;
-  int player_;
+  std::map<std::string, LegalsWithIndex> table_;
+  Player player_;
 };
 
 }  // namespace algorithms
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_ALGORITHMS_DETERMINISTIC_POLICY_H_
+#endif  // OPEN_SPIEL_ALGORITHMS_DETERMINISTIC_POLICY_H_

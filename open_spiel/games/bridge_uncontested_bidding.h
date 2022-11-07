@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_BRIDGE_UNCONTESTED_BIDDING_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_BRIDGE_UNCONTESTED_BIDDING_H_
+#ifndef OPEN_SPIEL_GAMES_BRIDGE_UNCONTESTED_BIDDING_H_
+#define OPEN_SPIEL_GAMES_BRIDGE_UNCONTESTED_BIDDING_H_
 
 #include <array>
 
@@ -96,28 +96,32 @@
 #include "open_spiel/spiel.h"
 
 namespace open_spiel {
-namespace bridge {
+namespace bridge_uncontested_bidding {
 
-constexpr int kNumSuits = 4;
-constexpr int kNumDenominations = 1 + kNumSuits;
-constexpr int kMaxBid = 7;
-constexpr int kNumBids = kMaxBid * kNumDenominations;
-constexpr int kNumActions = kNumBids + 1;
-constexpr int kNumCardsPerSuit = 13;
-constexpr int kNumCards = kNumSuits * kNumCardsPerSuit;
-constexpr int kNumPlayers = 2;
-constexpr int kNumHands = 4;
-constexpr int kNumCardsPerHand = 13;
-constexpr int kMinScore = -650;  // 13 undertricks, at 50 each
-constexpr int kMaxScore = 1520;  // 7NT making
-constexpr int kStateSize = kNumCards + kNumPlayers * kNumActions + kNumPlayers;
+using bridge::Contract;
+
+inline constexpr int kNumSuits = 4;
+inline constexpr int kNumDenominations = 1 + kNumSuits;
+inline constexpr int kMaxBid = 7;
+inline constexpr int kNumBids = kMaxBid * kNumDenominations;
+inline constexpr int kNumActions = kNumBids + 1;
+inline constexpr int kNumCardsPerSuit = 13;
+inline constexpr int kNumCards = kNumSuits * kNumCardsPerSuit;
+inline constexpr int kNumPlayers = 2;
+inline constexpr int kNumHands = 4;
+inline constexpr int kNumCardsPerHand = 13;
+inline constexpr int kMinScore = -650;  // 13 undertricks, at 50 each
+inline constexpr int kMaxScore = 1520;  // 7NT making
+inline constexpr int kStateSize =
+    kNumCards + kNumPlayers * kNumActions + kNumPlayers;
+inline constexpr char kRankChar[] = "23456789TJQKA";
 
 class Deal {
  public:
   Deal() { std::iota(std::begin(cards_), std::end(cards_), 0); }
   void Shuffle(std::mt19937* rng, int begin = 0, int end = kNumCards) {
     for (int i = begin; i < end - 1; ++i) {
-      // We don't use std::uniform_int_distribution because it behaves
+      // We don't use absl::uniform_int_distribution because it behaves
       // differently in different versions of C++, and we want reproducible
       // tests.
       int j = i + (*rng)() % (end - i);
@@ -136,40 +140,46 @@ class Deal {
 
 class UncontestedBiddingState : public State {
  public:
-  UncontestedBiddingState(std::vector<Contract> reference_contracts,
+  UncontestedBiddingState(std::shared_ptr<const Game> game,
+                          std::vector<Contract> reference_contracts,
                           std::function<bool(const Deal&)> deal_filter,
-                          std::vector<Action> actions, int rng_seed)
-      : State(kNumActions, kNumPlayers),
+                          std::vector<Action> actions, int rng_seed,
+                          int num_redeals)
+      : State(game),
         reference_contracts_(std::move(reference_contracts)),
         actions_(std::move(actions)),
         deal_filter_(deal_filter),
         rng_(rng_seed),
+        num_redeals_(num_redeals),
         dealt_(false) {}
-  UncontestedBiddingState(std::vector<Contract> reference_contracts,
+  UncontestedBiddingState(std::shared_ptr<const Game> game,
+                          std::vector<Contract> reference_contracts,
                           const Deal& deal, std::vector<Action> actions,
-                          int rng_seed)
-      : State(kNumActions, kNumPlayers),
+                          int rng_seed, int num_redeals)
+      : State(game),
         reference_contracts_(std::move(reference_contracts)),
         actions_(std::move(actions)),
         rng_(rng_seed),
+        num_redeals_(num_redeals),
         deal_(deal),
         dealt_(true) {
     if (IsTerminal()) ScoreDeal();
   }
   UncontestedBiddingState(const UncontestedBiddingState&) = default;
 
-  int CurrentPlayer() const override;
-  std::string ActionToString(int player, Action action_id) const override;
+  Player CurrentPlayer() const override;
+  std::string ActionToString(Player player, Action action_id) const override;
   std::string AuctionString() const;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
-  std::string InformationState(int player) const override;
-  void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string InformationStateString(Player player) const override;
+  void InformationStateTensor(Player player,
+                              absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
   std::vector<Action> LegalActions() const override;
   std::vector<std::pair<Action, double>> ChanceOutcomes() const override;
+  std::string Serialize() const override { return ToString(); }
 
  protected:
   void DoApplyAction(Action action_id) override;
@@ -187,6 +197,7 @@ class UncontestedBiddingState : public State {
   // balanced hand with 20-21 HCP (a 2NT opener - see above).
   std::function<bool(const Deal&)> deal_filter_;
   mutable std::mt19937 rng_;
+  const int num_redeals_;
   mutable Deal deal_;
   bool dealt_;
   double score_;                          // score for the achieved contract
@@ -197,9 +208,11 @@ class UncontestedBiddingGame : public Game {
  public:
   explicit UncontestedBiddingGame(const GameParameters& params);
   int NumDistinctActions() const override { return kNumActions; }
+  int MaxChanceOutcomes() const override { return 1; }
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(new UncontestedBiddingState(
-        reference_contracts_, deal_filter_, forced_actions_, ++rng_seed_));
+    return absl::make_unique<UncontestedBiddingState>(
+        shared_from_this(), reference_contracts_, deal_filter_, forced_actions_,
+        ++rng_seed_, num_redeals_);
   }
   int NumPlayers() const override { return kNumPlayers; }
   double MinUtility() const override {
@@ -208,27 +221,25 @@ class UncontestedBiddingGame : public Game {
   double MaxUtility() const override {
     return reference_contracts_.empty() ? kMaxScore : 0;
   }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new UncontestedBiddingGame(*this));
-  }
-  std::vector<int> InformationStateNormalizedVectorShape() const override {
+  std::vector<int> InformationStateTensorShape() const override {
     return {kStateSize};
   }
   int MaxGameLength() const override { return kNumActions; }
-  std::string SerializeState(const State& state) const override {
-    return state.ToString();
-  }
+  int MaxChanceNodesInHistory() const override { return 1; }
   std::unique_ptr<State> DeserializeState(
       const std::string& str) const override;
+  std::string GetRNGState() const;
+  void SetRNGState(const std::string& rng_state) const;
 
  private:
   std::vector<Contract> reference_contracts_;
   std::vector<Action> forced_actions_;
   std::function<bool(const Deal&)> deal_filter_;
   mutable int rng_seed_;
+  const int num_redeals_;
 };
 
-}  // namespace bridge
+}  // namespace bridge_uncontested_bidding
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_BRIDGE_UNCONTESTED_BIDDING_H_
+#endif  // OPEN_SPIEL_GAMES_BRIDGE_UNCONTESTED_BIDDING_H_

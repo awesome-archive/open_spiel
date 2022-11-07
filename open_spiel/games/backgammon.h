@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_BACKGAMMON_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_BACKGAMMON_H_
+#ifndef OPEN_SPIEL_GAMES_BACKGAMMON_H_
+#define OPEN_SPIEL_GAMES_BACKGAMMON_H_
 
 #include <array>
 #include <memory>
@@ -32,34 +32,48 @@
 // where outcomes are scored and tallied to 21).
 //
 // Parameters:
-//   "scoring_type"    string  Type of scoring for the game: "winloss_scoring"
-//                             (default), "enable_gammons", or "full_scoring"
+//   "hyper_backgammon"  bool    Use Hyper-backgammon variant [1] (def: false)
+//   "scoring_type"      string  Type of scoring for the game: "winloss_scoring"
+//                               (default), "enable_gammons", or "full_scoring"
+//
+// [1] https://bkgm.com/variants/HyperBackgammon.html. Hyper-backgammon is a
+// simplified backgammon start setup which is small enough to solve. Note that
+// it is not the full Hyper-backgammon sinc do not have cube is not implemented.
 
 namespace open_spiel {
 namespace backgammon {
 
-constexpr const int kNumPlayers = 2;
-constexpr const int kNumChanceOutcomes = 21;
-constexpr const int kNumPoints = 24;
-constexpr const int kNumDiceOutcomes = 6;
-constexpr const int kNumCheckersPerPlayer = 15;
-constexpr const int kXPlayerId = 0;
-constexpr const int kOPlayerId = 1;
-constexpr const int kBarPos = 100;
-constexpr const int kScorePos = 101;
-constexpr const int kPassPos = -1;
+inline constexpr const int kNumPlayers = 2;
+inline constexpr const int kNumChanceOutcomes = 21;
+inline constexpr const int kNumPoints = 24;
+inline constexpr const int kNumDiceOutcomes = 6;
+inline constexpr const int kXPlayerId = 0;
+inline constexpr const int kOPlayerId = 1;
+inline constexpr const int kPassPos = -1;
+
+// Number of checkers per player in the standard game. For varaints, use
+// BackgammonGame::NumCheckersPerPlayer.
+inline constexpr const int kNumCheckersPerPlayer = 15;
+
+// TODO: look into whether these can be set to 25 and -2 to avoid having a
+// separate helper function (PositionToStringHumanReadable) to convert moves
+// to strings.
+inline constexpr const int kBarPos = 100;
+inline constexpr const int kScorePos = 101;
 
 // The action encoding stores a number in { 0, 1, ..., 1351 }. If the high
 // roll is to move first, then the number is encoded as a 2-digit number in
 // base 26 ({0, 1, .., 23, kBarPos, Pass}) (=> first 676 numbers). Otherwise,
 // the low die is to move first and, 676 is subtracted and then again the
 // number is encoded as a 2-digit number in base 26.
-constexpr const int kNumDistinctActions = 1352;
+inline constexpr const int kNumDistinctActions = 1352;
 
-// See InformationStateNormalizedVectorShape for details.
-constexpr const int kBoardEncodingSize = 4 * kNumPoints * kNumPlayers;
-constexpr const int kStateEncodingSize = 3 * kNumPlayers + kBoardEncodingSize;
-constexpr const char* kDefaultScoringType = "winloss_scoring";
+// See ObservationTensorShape for details.
+inline constexpr const int kBoardEncodingSize = 4 * kNumPoints * kNumPlayers;
+inline constexpr const int kStateEncodingSize =
+    3 * kNumPlayers + kBoardEncodingSize;
+inline constexpr const char* kDefaultScoringType = "winloss_scoring";
+inline constexpr bool kDefaultHyperBackgammon = false;
 
 // Game scoring type, whether to score gammons/backgammons specially.
 enum class ScoringType {
@@ -107,20 +121,20 @@ class BackgammonGame;
 class BackgammonState : public State {
  public:
   BackgammonState(const BackgammonState&) = default;
-  BackgammonState(int num_distinct_actions, int num_players,
-                  ScoringType scoring_type);
+  BackgammonState(std::shared_ptr<const Game>, ScoringType scoring_type,
+                  bool hyper_backgammone);
 
-  int CurrentPlayer() const override;
-  void UndoAction(int player, Action action) override;
+  Player CurrentPlayer() const override;
+  void UndoAction(Player player, Action action) override;
   std::vector<Action> LegalActions() const override;
-  std::string ActionToString(int player, Action move_id) const override;
+  std::string ActionToString(Player player, Action move_id) const override;
   std::vector<std::pair<Action, double>> ChanceOutcomes() const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
-  std::string InformationState(int player) const override;
-  void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string ObservationString(Player player) const override;
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
 
   // Setter function used for debugging and tests. Note: this does not set the
@@ -156,6 +170,13 @@ class BackgammonState : public State {
   // will be a position that might be off the the board (<0 or >23).
   int GetToPos(int player, int from_pos, int pips) const;
 
+  // Count the total number of checkers for this player (on the board, in the
+  // bar, and have borne off). Should be 15 for the standard game.
+  int CountTotalCheckers(int player) const;
+
+  // Returns if moving from the position for the number of spaces is a hit.
+  bool IsHit(Player player, int from_pos, int num) const;
+
   // Accessor functions for some of the specific data.
   int player_turns() const { return turns_; }
   int player_turns(int player) const {
@@ -172,16 +193,24 @@ class BackgammonState : public State {
   // of checkers born off).
   int board(int player, int pos) const;
 
-  // Action encoding / decoding functions.
+  // Action encoding / decoding functions. Note, the converted checker moves
+  // do not contain the hit information; use the AddHitInfo function to get the
+  // hit information.
   Action CheckerMovesToSpielMove(const std::vector<CheckerMove>& moves) const;
   std::vector<CheckerMove> SpielMoveToCheckerMoves(int player,
                                                    Action spiel_move) const;
   Action TranslateAction(int from1, int from2, bool use_high_die_first) const;
 
+  // Return checker moves with extra hit information.
+  std::vector<CheckerMove>
+  AugmentWithHitInfo(Player player,
+                     const std::vector<CheckerMove> &cmoves) const;
+
  protected:
   void DoApplyAction(Action move_id) override;
 
  private:
+  void SetupInitialBoard();
   void RollDice(int outcome);
   bool IsPosInHome(int player, int pos) const;
   bool AllInHome(int player) const;
@@ -191,13 +220,16 @@ class BackgammonState : public State {
   int PositionFrom(int player, int pos, int spaces) const;
   int NumOppCheckers(int player, int pos) const;
   std::string DiceToString(int outcome) const;
-  int CountTotalCheckers(int player) const;
   int IsGammoned(int player) const;
   int IsBackgammoned(int player) const;
   int DiceValue(int i) const;
   int HighestUsableDiceOutcome() const;
   Action EncodedPassMove() const;
   Action EncodedBarMove() const;
+
+  // A helper function used by ActionToString to add necessary hit information
+  // and compute whether the move goes off the board.
+  int AugmentCheckerMove(CheckerMove* cmove, int player, int start) const;
 
   // Returns the position of the furthest checker in the home of this player.
   // Returns -1 if none found.
@@ -212,9 +244,10 @@ class BackgammonState : public State {
       int max_moves, const std::set<std::vector<CheckerMove>>& movelist) const;
 
   ScoringType scoring_type_;  // Which rules apply when scoring the game.
+  bool hyper_backgammon_;     // Is the Hyper-backgammon variant enabled?
 
-  int cur_player_;
-  int prev_player_;
+  Player cur_player_;
+  Player prev_player_;
   int turns_;
   int x_turns_;
   int o_turns_;
@@ -233,24 +266,27 @@ class BackgammonGame : public Game {
   int NumDistinctActions() const override { return kNumDistinctActions; }
 
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(
-        new BackgammonState(NumDistinctActions(), kNumPlayers, scoring_type_));
+    return std::unique_ptr<State>(new BackgammonState(
+        shared_from_this(), scoring_type_, hyper_backgammon_));
   }
 
-  int MaxChanceOutcomes() const override { return kNumChanceOutcomes; }
+  // On the first turn there are 30 outcomes: 15 for each player (rolls without
+  // the doubles).
+  int MaxChanceOutcomes() const override { return 30; }
 
   // There is arbitrarily chosen number to ensure the game is finite.
   int MaxGameLength() const override { return 1000; }
+
+  // Upper bound: chance node per move, with an initial chance node for
+  // determining starting player.
+  int MaxChanceNodesInHistory() const override { return MaxGameLength() + 1; }
 
   int NumPlayers() const override { return 2; }
   double MinUtility() const override { return -MaxUtility(); }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override;
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new BackgammonGame(*this));
-  }
 
-  std::vector<int> InformationStateNormalizedVectorShape() const override {
+  std::vector<int> ObservationTensorShape() const override {
     // Encode each point on the board as four doubles:
     // - One double for whether there is one checker or not (1 or 0).
     // - One double for whether there are two checkers or not (1 or 0).
@@ -271,11 +307,14 @@ class BackgammonGame : public Game {
     return {kStateEncodingSize};
   }
 
+  int NumCheckersPerPlayer() const;
+
  private:
   ScoringType scoring_type_;  // Which rules apply when scoring the game.
+  bool hyper_backgammon_;     // Is hyper-backgammon variant enabled?
 };
 
 }  // namespace backgammon
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_BACKGAMMON_H_
+#endif  // OPEN_SPIEL_GAMES_BACKGAMMON_H_

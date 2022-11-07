@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_CHESS_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_CHESS_H_
+#ifndef OPEN_SPIEL_GAMES_CHESS_H_
+#define OPEN_SPIEL_GAMES_CHESS_H_
 
 #include <array>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
-
+#include "open_spiel/abseil-cpp/absl/container/flat_hash_map.h"
+#include "open_spiel/abseil-cpp/absl/algorithm/container.h"
 #include "open_spiel/games/chess/chess_board.h"
 #include "open_spiel/spiel.h"
-#include "open_spiel/spiel_optional.h"
 #include "open_spiel/spiel_utils.h"
 
 // Game of chess:
@@ -35,24 +36,22 @@ namespace open_spiel {
 namespace chess {
 
 // Constants.
-constexpr int NumPlayers() { return 2; }
-constexpr double LossUtility() { return -1; }
-constexpr double DrawUtility() { return 0; }
-constexpr double WinUtility() { return 1; }
-constexpr int BoardSize() { return 8; }
+inline constexpr int NumPlayers() { return 2; }
+inline constexpr double LossUtility() { return -1; }
+inline constexpr double DrawUtility() { return 0; }
+inline constexpr double WinUtility() { return 1; }
 
-// See action encoding below.
-constexpr int NumDistinctActions() { return (1 << 15); }
+inline constexpr int NumDistinctActions() { return 4672; }
 
 // https://math.stackexchange.com/questions/194008/how-many-turns-can-a-chess-game-take-at-maximum
-constexpr int MaxGameLength() { return 17695; }
+inline constexpr int MaxGameLength() { return 17695; }
 
-inline const std::vector<int>& InformationStateNormalizedVectorShape() {
+inline const std::vector<int>& ObservationTensorShape() {
   static std::vector<int> shape{
       13 /* piece types * colours + empty */ + 1 /* repetition count */ +
           1 /* side to move */ + 1 /* irreversible move counter */ +
           4 /* castling rights */,
-      BoardSize(), BoardSize()};
+      kMaxBoardSize, kMaxBoardSize};
   return shape;
 }
 
@@ -68,21 +67,14 @@ inline int ColorToPlayer(Color c) {
   }
 }
 
-inline int OtherPlayer(int player) { return player == 0 ? 1 : 0; }
+inline int OtherPlayer(Player player) { return player == Player{0} ? 1 : 0; }
 
-// Action encoding (must be changed to support larger boards):
-// bits 0-5: from square (0-64)
-// bits 6-11: to square (0-64)
-// bits 12-14: promotion type (0 if not promotion)
-//
-// Promotion type:
-enum class PromotionTypeEncoding {
-  kNotPromotion = 0,
-  kQueen = 1,
-  kRook = 2,
-  kBishop = 3,
-  kKnight = 4
-};
+inline constexpr std::array<PieceType, 3> kUnderPromotionIndexToType = {
+    PieceType::kRook, PieceType::kBishop, PieceType::kKnight};
+inline constexpr std::array<Offset, 3> kUnderPromotionDirectionToOffset = {
+    {{0, 1}, {1, 1}, {-1, 1}}};
+inline constexpr int kNumUnderPromotions =
+    kUnderPromotionIndexToType.size() * kUnderPromotionDirectionToOffset.size();
 
 // Reads a bitfield within action, with LSB at offset, and length bits long (up
 // to 8).
@@ -100,89 +92,51 @@ inline void SetField(int offset, int length, uint8_t value, Action* action) {
 
 // Returns index (0 ... BoardSize*BoardSize-1) of a square
 // ({0, 0} ... {BoardSize-1, BoardSize-1}).
-inline uint8_t SquareToIndex(const Square& square) {
-  return square.y * BoardSize() + square.x;
+inline uint8_t SquareToIndex(const Square& square, int board_size) {
+  return square.y * board_size + square.x;
 }
 
 // Returns square ({0, 0} ... {BoardSize-1, BoardSize-1}) from an index
 // (0 ... BoardSize*BoardSize-1).
-inline Square IndexToSquare(uint8_t index) {
-  return Square{static_cast<int8_t>(index % BoardSize()),
-                static_cast<int8_t>(index / BoardSize())};
+inline Square IndexToSquare(uint8_t index, int board_size) {
+  return Square{static_cast<int8_t>(index % board_size),
+                static_cast<int8_t>(index / board_size)};
 }
 
-inline Action MoveToAction(const Move& move) {
-  Action action = 0;
+int EncodeMove(const Square& from_square, int destination_index, int board_size,
+               int num_actions_destinations);
 
-  SetField(0, 6, SquareToIndex(move.from), &action);
-  SetField(6, 6, SquareToIndex(move.to), &action);
+inline constexpr int kNumActionDestinations = 73;
 
-  uint8_t promo_encoded = 0;
-  switch (move.promotion_type) {
-    case PieceType::kQueen:
-      promo_encoded = static_cast<uint8_t>(PromotionTypeEncoding::kQueen);
-      break;
-    case PieceType::kRook:
-      promo_encoded = static_cast<uint8_t>(PromotionTypeEncoding::kRook);
-      break;
-    case PieceType::kBishop:
-      promo_encoded = static_cast<uint8_t>(PromotionTypeEncoding::kBishop);
-      break;
-    case PieceType::kKnight:
-      promo_encoded = static_cast<uint8_t>(PromotionTypeEncoding::kKnight);
-      break;
-    default:
-      promo_encoded = 0;
-  }
+int8_t ReflectRank(Color to_play, int board_size, int8_t rank);
 
-  SetField(12, 3, promo_encoded, &action);
+Color PlayerToColor(Player p);
 
-  return action;
-}
+Action MoveToAction(const Move& move, int board_size = kDefaultBoardSize);
 
-inline Move ActionToMove(const Action& action) {
-  PieceType promo_type;
-  switch (static_cast<PromotionTypeEncoding>(GetField(action, 12, 3))) {
-    case PromotionTypeEncoding::kQueen:
-      promo_type = PieceType::kQueen;
-      break;
-    case PromotionTypeEncoding::kRook:
-      promo_type = PieceType::kRook;
-      break;
-    case PromotionTypeEncoding::kBishop:
-      promo_type = PieceType::kBishop;
-      break;
-    case PromotionTypeEncoding::kKnight:
-      promo_type = PieceType::kKnight;
-      break;
-    case PromotionTypeEncoding::kNotPromotion:
-      promo_type = PieceType::kEmpty;
-      break;
-    default:
-      SpielFatalError("Unknown promotion type encoding");
-  }
-  return Move(IndexToSquare(GetField(action, 0, 6)),
-              IndexToSquare(GetField(action, 6, 6)), promo_type);
-}
+std::pair<Square, int> ActionToDestination(int action, int board_size,
+                                           int num_actions_destinations);
+
+Move ActionToMove(const Action& action, const ChessBoard& board);
 
 // State of an in-play game.
 class ChessState : public State {
  public:
   // Constructs a chess state at the standard start position.
-  ChessState();
+  ChessState(std::shared_ptr<const Game> game);
 
   // Constructs a chess state at the given position in Forsyth-Edwards Notation.
   // https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
-  ChessState(const std::string& fen);
+  ChessState(std::shared_ptr<const Game> game, const std::string& fen);
   ChessState(const ChessState&) = default;
 
   ChessState& operator=(const ChessState&) = default;
 
-  int CurrentPlayer() const override {
+  Player CurrentPlayer() const override {
     return IsTerminal() ? kTerminalPlayerId : ColorToPlayer(Board().ToPlay());
   }
   std::vector<Action> LegalActions() const override;
-  std::string ActionToString(int player, Action action) const override;
+  std::string ActionToString(Player player, Action action) const override;
   std::string ToString() const override;
 
   bool IsTerminal() const override {
@@ -190,16 +144,32 @@ class ChessState : public State {
   }
 
   std::vector<double> Returns() const override;
-
-  std::string InformationState(int player) const override;
-  void InformationStateAsNormalizedVector(
-      int player, std::vector<double>* values) const override;
+  std::string InformationStateString(Player player) const override;
+  std::string ObservationString(Player player) const override;
+  void ObservationTensor(Player player,
+                         absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
-  void UndoAction(int player, Action action) override;
+  void UndoAction(Player player, Action action) override;
 
   // Current board.
-  StandardChessBoard& Board() { return current_board_; }
-  const StandardChessBoard& Board() const { return current_board_; }
+  ChessBoard& Board() { return current_board_; }
+  const ChessBoard& Board() const { return current_board_; }
+  int BoardSize() const { return current_board_.BoardSize(); }
+
+  // Starting board.
+  ChessBoard& StartBoard() { return start_board_; }
+  const ChessBoard& StartBoard() const { return start_board_; }
+
+  std::vector<Move>& MovesHistory() { return moves_history_; }
+  const std::vector<Move>& MovesHistory() const { return moves_history_; }
+
+  // A prettier board string.
+  std::string DebugString() { return current_board_.DebugString(); }
+
+  // Returns an action parsed from standard algebraic notation or long
+  // algebraic notation (using ChessBoard::ParseMove), or kInvalidAction if
+  // the parsing fails.
+  Action ParseMoveToAction(const std::string& move_str) const;
 
  protected:
   void DoApplyAction(Action action) override;
@@ -209,16 +179,22 @@ class ChessState : public State {
   // board position has already appeared twice in the history).
   bool IsRepetitionDraw() const;
 
-  Optional<std::vector<double>> MaybeFinalReturns() const;
+  // Calculates legal actions and caches them. This is separate from
+  // LegalActions() as there are a number of other methods that need the value
+  // of LegalActions. This is a separate method as it's called from
+  // IsTerminal(), which is also called by LegalActions().
+  void MaybeGenerateLegalActions() const;
+
+  absl::optional<std::vector<double>> MaybeFinalReturns() const;
 
   // We have to store every move made to check for repetitions and to implement
   // undo. We store the current board position as an optimization.
   std::vector<Move> moves_history_;
   // We store the start board for history to support games not starting
   // from the start position.
-  StandardChessBoard start_board_;
+  ChessBoard start_board_;
   // We store the current board position as an optimization.
-  StandardChessBoard current_board_;
+  ChessBoard current_board_;
 
   // RepetitionTable records how many times the given hash exists in the history
   // stack (including the current board).
@@ -230,8 +206,9 @@ class ChessState : public State {
       return static_cast<std::size_t>(x);
     }
   };
-  using RepetitionTable = std::unordered_map<uint64_t, int, PassthroughHash>;
+  using RepetitionTable = absl::flat_hash_map<uint64_t, int, PassthroughHash>;
   RepetitionTable repetitions_;
+  mutable absl::optional<std::vector<Action>> cached_legal_actions_;
 };
 
 // Game object.
@@ -241,18 +218,19 @@ class ChessGame : public Game {
   int NumDistinctActions() const override {
     return chess::NumDistinctActions();
   }
+  std::unique_ptr<State> NewInitialState(
+      const std::string& fen) const override {
+    return absl::make_unique<ChessState>(shared_from_this(), fen);
+  }
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(new ChessState());
+    return absl::make_unique<ChessState>(shared_from_this());
   }
   int NumPlayers() const override { return chess::NumPlayers(); }
   double MinUtility() const override { return LossUtility(); }
   double UtilitySum() const override { return DrawUtility(); }
   double MaxUtility() const override { return WinUtility(); }
-  std::unique_ptr<Game> Clone() const override {
-    return std::unique_ptr<Game>(new ChessGame(*this));
-  }
-  std::vector<int> InformationStateNormalizedVectorShape() const override {
-    return chess::InformationStateNormalizedVectorShape();
+  std::vector<int> ObservationTensorShape() const override {
+    return chess::ObservationTensorShape();
   }
   int MaxGameLength() const override { return chess::MaxGameLength(); }
 };
@@ -260,4 +238,4 @@ class ChessGame : public Game {
 }  // namespace chess
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_CHESS_H_
+#endif  // OPEN_SPIEL_GAMES_CHESS_H_

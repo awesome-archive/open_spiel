@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_OPEN_SPIEL_GAMES_IMPL_COMMON_CHESS_COMMON_H_
-#define THIRD_PARTY_OPEN_SPIEL_GAMES_IMPL_COMMON_CHESS_COMMON_H_
+#ifndef OPEN_SPIEL_GAMES_IMPL_COMMON_CHESS_COMMON_H_
+#define OPEN_SPIEL_GAMES_IMPL_COMMON_CHESS_COMMON_H_
 
 #include <array>
 #include <cstdint>
 #include <random>
 #include <string>
+
+#include "open_spiel/abseil-cpp/absl/random/uniform_int_distribution.h"
 
 namespace open_spiel {
 namespace chess_common {
@@ -51,10 +53,10 @@ struct Square {
   int8_t y;
 };
 
-constexpr Square InvalidSquare() { return Square{-1, -1}; }
+constexpr Square kInvalidSquare{-1, -1};
 
 inline std::string SquareToString(const Square& square) {
-  if (square == InvalidSquare()) {
+  if (square == kInvalidSquare) {
     return "None";
   } else {
     std::string s;
@@ -116,7 +118,7 @@ class ZobristTable {
 
   ZobristTable(Generator::result_type seed) {
     Generator generator(seed);
-    std::uniform_int_distribution<Generator::result_type> dist;
+    absl::uniform_int_distribution<Generator::result_type> dist;
     data_.reserve(InnerDim);
     for (std::size_t i = 0; i < InnerDim; ++i) {
       data_.emplace_back(dist(generator));
@@ -139,7 +141,7 @@ class ZobristTable<T, InnerDim> {
 
   ZobristTable(Generator::result_type seed) : data_(InnerDim) {
     Generator generator(seed);
-    std::uniform_int_distribution<T> dist;
+    absl::uniform_int_distribution<T> dist;
     for (auto& field : data_) {
       field = dist(generator);
     }
@@ -158,4 +160,4 @@ inline std::ostream& operator<<(std::ostream& stream, const Square& sq) {
 }  // namespace chess_common
 }  // namespace open_spiel
 
-#endif  // THIRD_PARTY_OPEN_SPIEL_GAMES_IMPL_COMMON_CHESS_COMMON_H_
+#endif  // OPEN_SPIEL_GAMES_IMPL_COMMON_CHESS_COMMON_H_

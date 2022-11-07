@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,15 +14,14 @@
 
 """Python spiel example to use value iteration to solve a game."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import argparse
-import six
+from absl import app
+from absl import flags
 
 from open_spiel.python.algorithms import value_iteration
 import pyspiel
+
+FLAGS = flags.FLAGS
+flags.DEFINE_string("game", "tic_tac_toe", "Name of the game")
 
 
 def play_tic_tac_toe():
@@ -32,7 +31,7 @@ def play_tic_tac_toe():
   print("Solving the game; depth_limit = {}".format(-1))
   values = value_iteration.value_iteration(game, -1, 0.01)
 
-  for state, value in six.iteritems(values):
+  for state, value in values.items():
     print("")
     print(str(state))
     print("Value = {}".format(value))
@@ -48,16 +47,13 @@ def play_tic_tac_toe():
       "State should be won by player 1: \n" + cross_win_state)
 
 
-def main():
-  parser = argparse.ArgumentParser("value_iteration")
-  parser.add_argument("game", default="tic_tac_toe")
-  args = parser.parse_args()
-
-  if args.game == "tic_tac_toe":
+def main(argv):
+  del argv
+  if FLAGS.game == "tic_tac_toe":
     play_tic_tac_toe()
   else:
-    raise NotImplementedError("Only tic tac toe is implemented.")
+    raise NotImplementedError("This example only works for Tic-Tac-Toe.")
 
 
 if __name__ == "__main__":
-  main()
+  app.run(main)

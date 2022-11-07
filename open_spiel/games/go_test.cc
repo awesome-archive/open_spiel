@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,10 +39,28 @@ void BasicGoTests() {
 }
 
 void HandicapTest() {
-  GoState state(kBoardSize, kKomi, 2);
+  std::shared_ptr<const Game> game =
+      LoadGame("go", {{"board_size", open_spiel::GameParameter(kBoardSize)},
+                      {"komi", open_spiel::GameParameter(kKomi)},
+                      {"handicap", open_spiel::GameParameter(2)}});
+  GoState state(game, kBoardSize, kKomi, 2);
   SPIEL_CHECK_EQ(state.CurrentPlayer(), ColorToPlayer(GoColor::kWhite));
   SPIEL_CHECK_EQ(state.board().PointColor(MakePoint("d4")), GoColor::kBlack);
   SPIEL_CHECK_EQ(state.board().PointColor(MakePoint("q16")), GoColor::kBlack);
+}
+
+void ConcreteActionsAreUsedInTheAPI() {
+  int board_size = 13;
+  std::shared_ptr<const Game> game =
+      LoadGame("go", {{"board_size", open_spiel::GameParameter(board_size)}});
+  std::unique_ptr<State> state = game->NewInitialState();
+
+  SPIEL_CHECK_EQ(state->NumDistinctActions(), board_size * board_size + 1);
+  SPIEL_CHECK_EQ(state->LegalActions().size(), state->NumDistinctActions());
+  for (Action action : state->LegalActions()) {
+    SPIEL_CHECK_GE(action, 0);
+    SPIEL_CHECK_LE(action, board_size * board_size);
+  }
 }
 
 }  // namespace
@@ -52,4 +70,5 @@ void HandicapTest() {
 int main(int argc, char** argv) {
   open_spiel::go::BasicGoTests();
   open_spiel::go::HandicapTest();
+  open_spiel::go::ConcreteActionsAreUsedInTheAPI();
 }

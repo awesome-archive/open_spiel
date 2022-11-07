@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,11 +31,60 @@ bool ActionsContains(const std::vector<Action>& legal_actions, Action action) {
          legal_actions.end();
 }
 
+void CheckHits(const State &state) {
+  if (state.IsChanceNode() || state.IsTerminal()) {
+    return;
+  }
+  Player player = state.CurrentPlayer();
+  const auto &bstate = down_cast<const BackgammonState &>(state);
+  for (Action action : bstate.LegalActions()) {
+    std::vector<CheckerMove> cmoves = bstate.AugmentWithHitInfo(
+        player, bstate.SpielMoveToCheckerMoves(player, action));
+    std::cout << bstate.ActionToString(player, action) << std::endl;
+    for (CheckerMove cmove : cmoves) {
+      const int to_pos = bstate.GetToPos(player, cmove.pos, cmove.num);
+      // If the to position is on the board and there is only 1 checker, this
+      // has to be a hit.
+      if (cmove.pos != kPassPos && !bstate.IsOff(player, to_pos) &&
+          bstate.board(bstate.Opponent(player), to_pos) == 1) {
+        SPIEL_CHECK_TRUE(cmove.hit);
+      }
+
+      // Now, check the converse.
+      if (cmove.hit) {
+        SPIEL_CHECK_TRUE(cmove.pos != kPassPos &&
+                         !bstate.IsOff(player, to_pos) &&
+                         bstate.board(bstate.Opponent(player), to_pos) == 1);
+      }
+
+      // No need to apply the intermediate checker move, as it does not make
+      // any difference for what we're checking.
+    }
+  }
+}
+
+void BasicBackgammonTestsCheckHits() {
+  std::shared_ptr<const Game> game = LoadGame("backgammon");
+  testing::RandomSimTest(*game, 10, true, true, &CheckHits);
+}
+
 void BasicBackgammonTestsVaryScoring() {
   for (std::string scoring :
        {"winloss_scoring", "enable_gammons", "full_scoring"}) {
     auto game =
         LoadGame("backgammon", {{"scoring_type", GameParameter(scoring)}});
+    testing::ChanceOutcomesTest(*game);
+    testing::RandomSimTestWithUndo(*game, 10);
+    testing::RandomSimTest(*game, 10);
+  }
+}
+
+void BasicHyperBackgammonTestsVaryScoring() {
+  for (std::string scoring :
+       {"winloss_scoring", "enable_gammons", "full_scoring"}) {
+    auto game =
+        LoadGame("backgammon", {{"scoring_type", GameParameter(scoring)},
+                                {"hyper_backgammon", GameParameter(true)}});
     testing::ChanceOutcomesTest(*game);
     testing::RandomSimTestWithUndo(*game, 10);
     testing::RandomSimTest(*game, 10);
@@ -49,9 +98,10 @@ void BasicBackgammonTestsDoNotStartWithDoubles() {
     std::unique_ptr<State> state = game->NewInitialState();
 
     while (state->IsChanceNode()) {
-      Action outcome = SampleChanceOutcome(
-          state->ChanceOutcomes(),
-          std::uniform_real_distribution<double>(0.0, 1.0)(rng));
+      Action outcome =
+          SampleAction(state->ChanceOutcomes(),
+                       std::uniform_real_distribution<double>(0.0, 1.0)(rng))
+              .first;
       state->ApplyAction(outcome);
     }
     BackgammonState* backgammon_state =
@@ -83,7 +133,7 @@ void BasicBackgammonTestsDoNotStartWithDoubles() {
 // Bar:
 // Scores, X: 0, O: 12
 void BearOffFurthestFirstTest() {
-  std::unique_ptr<Game> game = LoadGame("backgammon");
+  std::shared_ptr<const Game> game = LoadGame("backgammon");
   std::unique_ptr<State> state = game->NewInitialState();
   BackgammonState* bstate = static_cast<BackgammonState*>(state.get());
   bstate->SetState(
@@ -124,7 +174,7 @@ void BearOffFurthestFirstTest() {
 // Bar:
 // Scores, X: 0, O: 8
 void NormalBearOffSituation() {
-  std::unique_ptr<Game> game = LoadGame("backgammon");
+  std::shared_ptr<const Game> game = LoadGame("backgammon");
   std::unique_ptr<State> state = game->NewInitialState();
   BackgammonState* bstate = static_cast<BackgammonState*>(state.get());
   bstate->SetState(
@@ -198,7 +248,7 @@ void NormalBearOffSituation() {
 // Bar:
 // Scores, X: 0, O: 0
 void NormalBearOffSituation2() {
-  std::unique_ptr<Game> game = LoadGame("backgammon");
+  std::shared_ptr<const Game> game = LoadGame("backgammon");
   std::unique_ptr<State> state = game->NewInitialState();
   BackgammonState* bstate = static_cast<BackgammonState*>(state.get());
   bstate->SetState(
@@ -248,7 +298,7 @@ void NormalBearOffSituation2() {
 // Bar:
 // Scores, X: 0, O: 0
 void BearOffOutsideHome() {
-  std::unique_ptr<Game> game = LoadGame("backgammon");
+  std::shared_ptr<const Game> game = LoadGame("backgammon");
   std::unique_ptr<State> state = game->NewInitialState();
   BackgammonState* bstate = static_cast<BackgammonState*>(state.get());
   bstate->SetState(
@@ -291,7 +341,7 @@ void BearOffOutsideHome() {
 // Bar:
 // Scores, X: 0, O: 0
 void DoublesBearOffOutsideHome() {
-  std::unique_ptr<Game> game = LoadGame("backgammon");
+  std::shared_ptr<const Game> game = LoadGame("backgammon");
   std::unique_ptr<State> state = game->NewInitialState();
   BackgammonState* bstate = static_cast<BackgammonState*>(state.get());
   bstate->SetState(
@@ -333,17 +383,219 @@ void DoublesBearOffOutsideHome() {
   SPIEL_CHECK_TRUE(ActionsContains(legal_actions, action));
 }
 
+void HumanReadableNotation() {
+  std::shared_ptr<const Game> game = LoadGame("backgammon");
+  std::unique_ptr<State> state = game->NewInitialState();
+  BackgammonState* bstate = static_cast<BackgammonState*>(state.get());
+
+  // Check double repeated move and moving on from Bar displayed correctly
+  bstate->SetState(
+      kXPlayerId, false, {1, 1}, {13, 5}, {0, 0},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  std::vector<Action> legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  std::string notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - Bar/24(2)"));
+
+  // Check hits displayed correctly
+  bstate->SetState(
+      kXPlayerId, false, {2, 1}, {13, 5}, {0, 0},
+      {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+       {1, 1, 1, 1, 1, 5, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation,
+                 absl::StrCat(legal_actions[0], " - Bar/24* Bar/23*"));
+
+  // Check moving off displayed correctly
+  bstate->SetState(
+      kXPlayerId, false, {2, 1}, {0, 0}, {13, 5},
+      {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+       {0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 2/Off 1/Off"));
+
+  // Check die order doesnt impact narrative
+  bstate->SetState(
+      kXPlayerId, false, {1, 2}, {0, 0}, {13, 5},
+      {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+       {0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 2/Off 1/Off"));
+
+  // Check double move
+  bstate->SetState(
+      kXPlayerId, false, {6, 5}, {0, 0}, {13, 5},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/18/13"));
+
+  // Check double move with hit
+  bstate->SetState(
+      kXPlayerId, false, {6, 5}, {0, 0}, {13, 4},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/18*/13"));
+
+  // Check double move with double hit
+  bstate->SetState(
+      kXPlayerId, false, {6, 5}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/18*/13*"));
+
+  // Check ordinary move!
+  bstate->SetState(
+      kXPlayerId, false, {6, 5}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 4, 0, 0, 0, 0, 0, 0, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/19 24/18"));
+
+  // Check ordinary move with die reversed
+  bstate->SetState(
+      kXPlayerId, false, {5, 6}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 4, 0, 0, 0, 0, 0, 0, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal actions:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/19 24/18"));
+
+  // Check ordinary move with 1st hit
+  bstate->SetState(
+      kXPlayerId, false, {6, 5}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 3, 1, 0, 0, 0, 0, 0, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/19* 24/18"));
+
+  // Check ordinary move with 2nd hit
+  bstate->SetState(
+      kXPlayerId, false, {5, 6}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 3, 0, 1, 0, 0, 0, 0, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/19 24/18*"));
+
+  // Check ordinary move with double hit
+  bstate->SetState(
+      kXPlayerId, false, {5, 6}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/19* 24/18*"));
+
+  // Check double pass
+  bstate->SetState(
+      kXPlayerId, false, {5, 3}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, "Pass");
+
+  // Check single pass
+  bstate->SetState(
+      kXPlayerId, false, {5, 6}, {0, 0}, {13, 3},
+      {{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+       {0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}});
+  std::cout << bstate->ToString();
+  legal_actions = bstate->LegalActions();
+  std::cout << "First legal action:" << std::endl;
+  notation = bstate->ActionToString(kXPlayerId, legal_actions[0]);
+  std::cout << notation << std::endl;
+  SPIEL_CHECK_EQ(notation, absl::StrCat(legal_actions[0], " - 24/18 Pass"));
+}
+
+void BasicHyperBackgammonTest() {
+  std::shared_ptr<const Game> game =
+      LoadGame("backgammon", {{"hyper_backgammon", GameParameter(true)}});
+  std::unique_ptr<State> state = game->NewInitialState();
+  BackgammonState* bstate = static_cast<BackgammonState*>(state.get());
+  SPIEL_CHECK_EQ(bstate->CountTotalCheckers(kXPlayerId), 3);
+  SPIEL_CHECK_EQ(bstate->CountTotalCheckers(kOPlayerId), 3);
+}
+
 }  // namespace
 }  // namespace backgammon
 }  // namespace open_spiel
 
 int main(int argc, char** argv) {
   open_spiel::testing::LoadGameTest("backgammon");
+  open_spiel::backgammon::BasicBackgammonTestsCheckHits();
   open_spiel::backgammon::BasicBackgammonTestsDoNotStartWithDoubles();
+  open_spiel::backgammon::BasicBackgammonTestsVaryScoring();
+  open_spiel::backgammon::BasicHyperBackgammonTestsVaryScoring();
   open_spiel::backgammon::BearOffFurthestFirstTest();
   open_spiel::backgammon::NormalBearOffSituation();
   open_spiel::backgammon::NormalBearOffSituation2();
   open_spiel::backgammon::BearOffOutsideHome();
   open_spiel::backgammon::DoublesBearOffOutsideHome();
-  open_spiel::backgammon::BasicBackgammonTestsVaryScoring();
+  open_spiel::backgammon::HumanReadableNotation();
+  open_spiel::backgammon::BasicHyperBackgammonTest();
 }

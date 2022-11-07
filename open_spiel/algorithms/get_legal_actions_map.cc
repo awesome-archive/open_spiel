@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,7 +22,7 @@ namespace {
 // search of all the subtrees to fill the map for all the information states.
 void FillMap(const State& state,
              std::unordered_map<std::string, std::vector<Action>>* map,
-             int depth_limit, int depth, int player) {
+             int depth_limit, int depth, Player player) {
   if (state.IsTerminal()) {
     return;
   }
@@ -35,9 +35,9 @@ void FillMap(const State& state,
     // Do nothing at chance nodes (no information states).
   } else if (state.IsSimultaneousNode()) {
     // Many players can play at this node.
-    for (int p = 0; p < state.NumPlayers(); ++p) {
+    for (auto p = Player{0}; p < state.NumPlayers(); ++p) {
       if (player == kInvalidPlayer || p == player) {
-        std::string info_state = state.InformationState(p);
+        std::string info_state = state.InformationStateString(p);
         if (map->find(info_state) == map->end()) {
           // Only add it if we don't already have it.
           std::vector<Action> legal_actions = state.LegalActions(p);
@@ -48,7 +48,7 @@ void FillMap(const State& state,
   } else {
     // Regular decision node.
     if (player == kInvalidPlayer || state.CurrentPlayer() == player) {
-      std::string info_state = state.InformationState();
+      std::string info_state = state.InformationStateString();
       if (map->find(info_state) == map->end()) {
         // Only add it if we don't already have it.
         std::vector<Action> legal_actions = state.LegalActions();
@@ -67,7 +67,7 @@ void FillMap(const State& state,
 }  // namespace
 
 std::unordered_map<std::string, std::vector<Action>> GetLegalActionsMap(
-    const Game& game, int depth_limit, int player) {
+    const Game& game, int depth_limit, Player player) {
   std::unordered_map<std::string, std::vector<Action>> map;
   std::unique_ptr<State> initial_state = game.NewInitialState();
   FillMap(*initial_state, &map, depth_limit, 0, player);

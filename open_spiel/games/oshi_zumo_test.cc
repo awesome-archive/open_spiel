@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,10 +31,10 @@ void BasicOshiZumoTests() {
 }
 
 void CountStates() {
-  open_spiel::oshi_zumo::OshiZumoGame game(
-      {{"horizon", open_spiel::GameParameter(5)},
-       {"coins", open_spiel::GameParameter(5)}});
-  auto states = algorithms::GetAllStates(game, /*depth_limit=*/-1,
+  std::shared_ptr<const Game> game =
+      LoadGame("oshi_zumo", {{"horizon", open_spiel::GameParameter(5)},
+                             {"coins", open_spiel::GameParameter(5)}});
+  auto states = algorithms::GetAllStates(*game, /*depth_limit=*/-1,
                                          /*include_terminals=*/true,
                                          /*include_chance_states=*/true);
   std::cerr << states.size() << std::endl;
@@ -47,8 +47,8 @@ void CountStates() {
 
 int main(int argc, char **argv) {
   open_spiel::oshi_zumo::BasicOshiZumoTests();
-  open_spiel::oshi_zumo::OshiZumoGame game(
-      {{"horizon", open_spiel::GameParameter(5)}});
+  std::shared_ptr<const open_spiel::Game> game = open_spiel::LoadGame(
+      "oshi_zumo", {{"horizon", open_spiel::GameParameter(5)}});
   open_spiel::oshi_zumo::CountStates();
-  open_spiel::testing::RandomSimTest(game, /*num_sims=*/10);
+  open_spiel::testing::RandomSimTest(*game, /*num_sims=*/10);
 }
